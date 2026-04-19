@@ -1,5 +1,5 @@
 # UE 编译/中间产物
-Binaries/
+# Binaries/ 不忽略，供美术/策划直接打开项目
 Build/
 DerivedDataCache/
 Intermediate/
