@@ -9,12 +9,22 @@
 
 class AShooterWeapon;
 class AShooterPickupBase;
+class UAnimMontage;
+class UDamageType;
 class UInputAction;
 class UInputComponent;
 class UPawnNoiseEmitterComponent;
+class USphereComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBulletCountUpdatedDelegate, int32, MagazineSize, int32, Bullets);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDamagedDelegate, float, LifePercent);
+
+UENUM(BlueprintType)
+enum class EShooterCharacterAction : uint8
+{
+	None,
+	Kick
+};
 
 /**
  *  A player controllable first person shooter character
@@ -29,6 +39,10 @@ class UEGAMEJAM_API AShooterCharacter : public AUEGameJamCharacter, public IShoo
 	/** AI Noise emitter component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UPawnNoiseEmitterComponent* PawnNoiseEmitter;
+
+	/** 踢击造成伤害时使用的球形检测范围，可在蓝图中调整位置和大小 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	USphereComponent* KickDamageCollision;
 
 protected:
 
@@ -48,6 +62,26 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category ="Input")
 	class UInputAction* SlideAction;
+
+	/** 踢击时播放的动画蒙太奇 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick")
+	UAnimMontage* KickMontage;
+
+	/** 踢击命中时造成的伤害值 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick", meta = (ClampMin = 0))
+	float KickDamage = 50.0f;
+
+	/** 踢击使用的伤害类型 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick")
+	TSubclassOf<UDamageType> KickDamageType;
+
+	/** 没有成功播放踢击蒙太奇时，踢击动作锁定的备用时长 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick", meta = (ClampMin = 0, Units = "s"))
+	float KickFallbackDuration = 0.5f;
+
+	/** 踢击命中敌人时将敌人推开的力度 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick", meta = (ClampMin = 0))
+	float KickPushStrength = 1000.0f;
 
 	/** Name of the first person mesh weapon socket */
 	UPROPERTY(EditAnywhere, Category ="Weapons")
@@ -80,6 +114,13 @@ protected:
 
 	/** Pickups currently overlapping this character */
 	TArray<TWeakObjectPtr<AShooterPickupBase>> PickupCandidates;
+
+	/** Current character action, used to block overlapping actions */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Action")
+	EShooterCharacterAction CurrentAction = EShooterCharacterAction::None;
+
+	/** Timer used to finish the current character action */
+	FTimerHandle ActionTimer;
 
 	UPROPERTY(EditAnywhere, Category ="Destruction", meta = (ClampMin = 0, ClampMax = 10, Units = "s"))
 	float RespawnTime = 5.0f;
@@ -132,6 +173,14 @@ public:
 	/** Handles pickup input */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoPickup();
+
+	/** Handles kick input */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoKick();
+
+	/** Returns true when any character action is active */
+	UFUNCTION(BlueprintPure, Category="Action")
+	bool IsCharacterActionActive() const;
 
 	/** Registers a pickup currently in range */
 	void RegisterPickupCandidate(AShooterPickupBase* Pickup);
@@ -188,6 +237,12 @@ protected:
 
 	/** Removes invalid pickup candidates */
 	void CleanPickupCandidates();
+
+	/** Starts a character action if no other character action is active */
+	bool TryStartCharacterAction(EShooterCharacterAction Action, float Duration);
+
+	/** Finishes the current character action */
+	void FinishCharacterAction();
 
 	/** Called when this character's HP is depleted */
 	void Die();

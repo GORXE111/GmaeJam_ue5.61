@@ -5,7 +5,7 @@
 ## 项目
 
 在UE官方的第一人称项目Shooter示例代码基础上进行修改
-代码写在Source\UEGameJam\Variant_Shooter中，按模块分类，单个文件不超过500行
+代码写在Source\UEGameJam\Variant_Shooter中，按模块分类，单个文件尽量不超过500行
 
 ## 代码风格约定
 

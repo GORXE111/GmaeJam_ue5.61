@@ -7,7 +7,9 @@
 #include "EnhancedInputComponent.h"
 #include "Components/InputComponent.h"
 #include "Components/PawnNoiseEmitterComponent.h"
+#include "Components/SphereComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/DamageType.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "Camera/CameraComponent.h"
@@ -18,6 +20,20 @@ AShooterCharacter::AShooterCharacter()
 {
 	// create the noise emitter component
 	PawnNoiseEmitter = CreateDefaultSubobject<UPawnNoiseEmitterComponent>(TEXT("Pawn Noise Emitter"));
+
+	// create the kick damage check volume
+	KickDamageCollision = CreateDefaultSubobject<USphereComponent>(TEXT("Kick Damage Collision"));
+	KickDamageCollision->SetupAttachment(GetRootComponent());
+	KickDamageCollision->SetSphereRadius(100.0f);
+	KickDamageCollision->SetRelativeLocation(FVector(100.0f, 0.0f, 0.0f));
+	KickDamageCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	KickDamageCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
+	KickDamageCollision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	KickDamageCollision->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
+	KickDamageCollision->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
+	KickDamageCollision->SetGenerateOverlapEvents(true);
+
+	KickDamageType = UDamageType::StaticClass();
 
 	// configure movement
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 600.0f, 0.0f);
@@ -40,6 +56,7 @@ void AShooterCharacter::EndPlay(EEndPlayReason::Type EndPlayReason)
 
 	// clear the respawn timer
 	GetWorld()->GetTimerManager().ClearTimer(RespawnTimer);
+	GetWorld()->GetTimerManager().ClearTimer(ActionTimer);
 }
 
 void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -61,6 +78,12 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		if (PickupAction)
 		{
 			EnhancedInputComponent->BindAction(PickupAction, ETriggerEvent::Started, this, &AShooterCharacter::DoPickup);
+		}
+
+		// Kick
+		if (KickAction)
+		{
+			EnhancedInputComponent->BindAction(KickAction, ETriggerEvent::Started, this, &AShooterCharacter::DoKick);
 		}
 	}
 
