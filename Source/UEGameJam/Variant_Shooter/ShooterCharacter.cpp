@@ -2,6 +2,7 @@
 
 
 #include "ShooterCharacter.h"
+#include "ShooterPickupBase.h"
 #include "ShooterWeapon.h"
 #include "EnhancedInputComponent.h"
 #include "Components/InputComponent.h"
@@ -55,6 +56,12 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 		// Switch weapon
 		EnhancedInputComponent->BindAction(SwitchWeaponAction, ETriggerEvent::Triggered, this, &AShooterCharacter::DoSwitchWeapon);
+
+		// Pickup
+		if (PickupAction)
+		{
+			EnhancedInputComponent->BindAction(PickupAction, ETriggerEvent::Started, this, &AShooterCharacter::DoPickup);
+		}
 	}
 
 }
@@ -128,6 +135,107 @@ void AShooterCharacter::DoSwitchWeapon()
 		// activate the new weapon
 		CurrentWeapon->ActivateWeapon();
 	}
+}
+
+void AShooterCharacter::DoPickup()
+{
+	if (AShooterPickupBase* Pickup = FindBestPickupCandidate())
+	{
+		Pickup->TryPickup(this, true);
+	}
+}
+
+void AShooterCharacter::RegisterPickupCandidate(AShooterPickupBase* Pickup)
+{
+	if (!IsValid(Pickup))
+	{
+		return;
+	}
+
+	PickupCandidates.AddUnique(TWeakObjectPtr<AShooterPickupBase>(Pickup));
+
+	if (Pickup->CanAutoPickup(this))
+	{
+		Pickup->TryPickup(this, false);
+	}
+}
+
+void AShooterCharacter::UnregisterPickupCandidate(AShooterPickupBase* Pickup)
+{
+	PickupCandidates.RemoveAllSwap([Pickup](const TWeakObjectPtr<AShooterPickupBase>& PickupCandidate)
+	{
+		return PickupCandidate.Get() == Pickup;
+	});
+}
+
+bool AShooterCharacter::ShouldAutoPickupWeapon() const
+{
+	return !IsValid(CurrentWeapon) || CurrentWeapon->GetBulletCount() <= 0;
+}
+
+bool AShooterCharacter::ReplaceCurrentWeaponClass(const TSubclassOf<AShooterWeapon>& WeaponClass, TSubclassOf<AShooterWeapon>& OutReplacedWeaponClass)
+{
+	OutReplacedWeaponClass = nullptr;
+
+	if (!WeaponClass)
+	{
+		return false;
+	}
+
+	AShooterWeapon* ReplacedWeapon = IsValid(CurrentWeapon) ? CurrentWeapon.Get() : nullptr;
+	if (!ReplacedWeapon)
+	{
+		CurrentWeapon = nullptr;
+	}
+
+	if (ReplacedWeapon)
+	{
+		OutReplacedWeaponClass = ReplacedWeapon->GetClass();
+	}
+
+	if (AShooterWeapon* ExistingWeapon = FindWeaponOfType(WeaponClass))
+	{
+		if (ExistingWeapon != ReplacedWeapon)
+		{
+			if (ReplacedWeapon)
+			{
+				ReplacedWeapon->DeactivateWeapon();
+				OwnedWeapons.Remove(ReplacedWeapon);
+				ReplacedWeapon->Destroy();
+			}
+
+			CurrentWeapon = ExistingWeapon;
+			CurrentWeapon->ActivateWeapon();
+			return true;
+		}
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.TransformScaleMethod = ESpawnActorScaleMethod::MultiplyWithRoot;
+
+	AShooterWeapon* AddedWeapon = GetWorld()->SpawnActor<AShooterWeapon>(WeaponClass, GetActorTransform(), SpawnParams);
+	if (!AddedWeapon)
+	{
+		OutReplacedWeaponClass = nullptr;
+		return false;
+	}
+
+	OwnedWeapons.Add(AddedWeapon);
+
+	if (ReplacedWeapon)
+	{
+		ReplacedWeapon->DeactivateWeapon();
+		OwnedWeapons.Remove(ReplacedWeapon);
+		ReplacedWeapon->Destroy();
+	}
+
+	CurrentWeapon = AddedWeapon;
+	CurrentWeapon->ActivateWeapon();
+
+	return true;
 }
 
 void AShooterCharacter::AttachWeaponMeshes(AShooterWeapon* Weapon)
@@ -235,7 +343,7 @@ AShooterWeapon* AShooterCharacter::FindWeaponOfType(TSubclassOf<AShooterWeapon> 
 	// check each owned weapon
 	for (AShooterWeapon* Weapon : OwnedWeapons)
 	{
-		if (Weapon->IsA(WeaponClass))
+		if (IsValid(Weapon) && Weapon->IsA(WeaponClass))
 		{
 			return Weapon;
 		}
@@ -244,6 +352,40 @@ AShooterWeapon* AShooterCharacter::FindWeaponOfType(TSubclassOf<AShooterWeapon> 
 	// weapon not found
 	return nullptr;
 
+}
+
+AShooterPickupBase* AShooterCharacter::FindBestPickupCandidate()
+{
+	CleanPickupCandidates();
+
+	AShooterPickupBase* BestPickup = nullptr;
+	float BestDistanceSq = TNumericLimits<float>::Max();
+
+	for (const TWeakObjectPtr<AShooterPickupBase>& PickupCandidate : PickupCandidates)
+	{
+		AShooterPickupBase* Pickup = PickupCandidate.Get();
+		if (!Pickup || !Pickup->CanManualPickup(this))
+		{
+			continue;
+		}
+
+		const float DistanceSq = FVector::DistSquared(GetActorLocation(), Pickup->GetActorLocation());
+		if (DistanceSq < BestDistanceSq)
+		{
+			BestPickup = Pickup;
+			BestDistanceSq = DistanceSq;
+		}
+	}
+
+	return BestPickup;
+}
+
+void AShooterCharacter::CleanPickupCandidates()
+{
+	PickupCandidates.RemoveAllSwap([](const TWeakObjectPtr<AShooterPickupBase>& PickupCandidate)
+	{
+		return !PickupCandidate.IsValid() || !PickupCandidate->IsPickupEnabled();
+	});
 }
 
 void AShooterCharacter::Die()

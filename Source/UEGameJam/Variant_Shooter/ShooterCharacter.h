@@ -8,6 +8,7 @@
 #include "ShooterCharacter.generated.h"
 
 class AShooterWeapon;
+class AShooterPickupBase;
 class UInputAction;
 class UInputComponent;
 class UPawnNoiseEmitterComponent;
@@ -39,6 +40,15 @@ protected:
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* SwitchWeaponAction;
 
+	UPROPERTY(EditAnywhere, Category ="Input")
+	class UInputAction* PickupAction;
+
+	UPROPERTY(EditAnywhere, Category ="Input")
+	class UInputAction* KickAction;
+
+	UPROPERTY(EditAnywhere, Category ="Input")
+	class UInputAction* SlideAction;
+
 	/** Name of the first person mesh weapon socket */
 	UPROPERTY(EditAnywhere, Category ="Weapons")
 	FName FirstPersonWeaponSocket = FName("HandGrip_R");
@@ -67,6 +77,9 @@ protected:
 
 	/** Weapon currently equipped and ready to shoot with */
 	TObjectPtr<AShooterWeapon> CurrentWeapon;
+
+	/** Pickups currently overlapping this character */
+	TArray<TWeakObjectPtr<AShooterPickupBase>> PickupCandidates;
 
 	UPROPERTY(EditAnywhere, Category ="Destruction", meta = (ClampMin = 0, ClampMax = 10, Units = "s"))
 	float RespawnTime = 5.0f;
@@ -116,6 +129,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoSwitchWeapon();
 
+	/** Handles pickup input */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoPickup();
+
+	/** Registers a pickup currently in range */
+	void RegisterPickupCandidate(AShooterPickupBase* Pickup);
+
+	/** Removes a pickup from the in-range list */
+	void UnregisterPickupCandidate(AShooterPickupBase* Pickup);
+
+	/** Returns true if the character should automatically pick up a weapon */
+	bool ShouldAutoPickupWeapon() const;
+
+	/** Replaces the current weapon and returns the replaced weapon class */
+	bool ReplaceCurrentWeaponClass(const TSubclassOf<AShooterWeapon>& WeaponClass, TSubclassOf<AShooterWeapon>& OutReplacedWeaponClass);
+
 public:
 
 	//~Begin IShooterWeaponHolder interface
@@ -153,6 +182,12 @@ protected:
 
 	/** Returns true if the character already owns a weapon of the given class */
 	AShooterWeapon* FindWeaponOfType(TSubclassOf<AShooterWeapon> WeaponClass) const;
+
+	/** Finds the nearest valid pickup candidate */
+	AShooterPickupBase* FindBestPickupCandidate();
+
+	/** Removes invalid pickup candidates */
+	void CleanPickupCandidates();
 
 	/** Called when this character's HP is depleted */
 	void Die();

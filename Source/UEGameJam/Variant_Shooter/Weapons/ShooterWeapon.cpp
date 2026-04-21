@@ -130,6 +130,13 @@ void AShooterWeapon::Fire()
 	{
 		return;
 	}
+
+	if (CurrentBullets <= 0)
+	{
+		StopFiring();
+		WeaponOwner->UpdateWeaponHUD(0, MagazineSize);
+		return;
+	}
 	
 	// fire a projectile at the target
 	FireProjectile(WeaponOwner->GetWeaponTargetLocation());
@@ -181,12 +188,6 @@ void AShooterWeapon::FireProjectile(const FVector& TargetLocation)
 
 	// consume bullets
 	--CurrentBullets;
-
-	// if the clip is depleted, reload it
-	if (CurrentBullets <= 0)
-	{
-		CurrentBullets = MagazineSize;
-	}
 
 	// update the weapon HUD
 	WeaponOwner->UpdateWeaponHUD(CurrentBullets, MagazineSize);

@@ -2,62 +2,26 @@
 
 
 #include "ShooterPickup.h"
-#include "Components/SceneComponent.h"
-#include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "ShooterWeaponHolder.h"
+#include "ShooterCharacter.h"
 #include "ShooterWeapon.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
-
-AShooterPickup::AShooterPickup()
-{
- 	PrimaryActorTick.bCanEverTick = true;
-
-	// create the root
-	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-
-	// create the collision sphere
-	SphereCollision = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere Collision"));
-	SphereCollision->SetupAttachment(RootComponent);
-
-	SphereCollision->SetRelativeLocation(FVector(0.0f, 0.0f, 84.0f));
-	SphereCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	SphereCollision->SetCollisionObjectType(ECC_WorldStatic);
-	SphereCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
-	SphereCollision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	SphereCollision->bFillCollisionUnderneathForNavmesh = true;
-
-	// subscribe to the collision overlap on the sphere
-	SphereCollision->OnComponentBeginOverlap.AddDynamic(this, &AShooterPickup::OnOverlap);
-
-	// create the mesh
-	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
-	Mesh->SetupAttachment(SphereCollision);
-
-	Mesh->SetCollisionProfileName(FName("NoCollision"));
-}
+#include "UEGameJam.h"
 
 void AShooterPickup::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	if (FWeaponTableRow* WeaponData = WeaponType.GetRow<FWeaponTableRow>(FString()))
-	{
-		// set the mesh
-		Mesh->SetStaticMesh(WeaponData->StaticMesh.LoadSynchronous());
-	}
+	RefreshWeaponDataFromRow();
 }
 
 void AShooterPickup::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (FWeaponTableRow* WeaponData = WeaponType.GetRow<FWeaponTableRow>(FString()))
-	{
-		// copy the weapon class
-		WeaponClass = WeaponData->WeaponToSpawn;
-	}
+	RefreshWeaponDataFromRow();
 }
 
 void AShooterPickup::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -68,25 +32,44 @@ void AShooterPickup::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	GetWorld()->GetTimerManager().ClearTimer(RespawnTimer);
 }
 
-void AShooterPickup::OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+bool AShooterPickup::CanManualPickup(AShooterCharacter* Character) const
 {
-	// have we collided against a weapon holder?
-	if (IShooterWeaponHolder* WeaponHolder = Cast<IShooterWeaponHolder>(OtherActor))
+	return Super::CanManualPickup(Character) && WeaponClass;
+}
+
+bool AShooterPickup::CanAutoPickup(AShooterCharacter* Character) const
+{
+	return CanManualPickup(Character) && Character->ShouldAutoPickupWeapon();
+}
+
+bool AShooterPickup::TryPickup(AShooterCharacter* Character, bool bForcePickup)
+{
+	if (!CanManualPickup(Character))
 	{
-		WeaponHolder->AddWeaponClass(WeaponClass);
-
-		// hide this mesh
-		SetActorHiddenInGame(true);
-
-		// disable collision
-		SetActorEnableCollision(false);
-
-		// disable ticking
-		SetActorTickEnabled(false);
-
-		// schedule the respawn
-		GetWorld()->GetTimerManager().SetTimer(RespawnTimer, this, &AShooterPickup::RespawnPickup, RespawnTime, false);
+		return false;
 	}
+
+	if (!bForcePickup && !CanAutoPickup(Character))
+	{
+		return false;
+	}
+
+	TSubclassOf<AShooterWeapon> ReplacedWeaponClass;
+	if (!Character->ReplaceCurrentWeaponClass(WeaponClass, ReplacedWeaponClass))
+	{
+		return false;
+	}
+
+	SpawnDroppedWeaponPickup(Character, ReplacedWeaponClass);
+	HandlePickupConsumed(Character);
+
+	return true;
+}
+
+void AShooterPickup::InitializeDroppedWeapon(const TSubclassOf<AShooterWeapon>& DroppedWeaponClass, const UDataTable* WeaponDataTable)
+{
+	bShouldRespawn = false;
+	RefreshWeaponDataFromClass(DroppedWeaponClass, WeaponDataTable);
 }
 
 void AShooterPickup::RespawnPickup()
@@ -100,9 +83,93 @@ void AShooterPickup::RespawnPickup()
 
 void AShooterPickup::FinishRespawn()
 {
-	// enable collision
-	SetActorEnableCollision(true);
+	SetPickupEnabled(true);
+}
 
-	// enable tick
-	SetActorTickEnabled(true);
+void AShooterPickup::RefreshWeaponDataFromRow()
+{
+	if (!WeaponType.DataTable || WeaponType.RowName.IsNone())
+	{
+		return;
+	}
+
+	if (FWeaponTableRow* WeaponData = WeaponType.GetRow<FWeaponTableRow>(FString()))
+	{
+		ApplyWeaponData(*WeaponData);
+	}
+}
+
+void AShooterPickup::RefreshWeaponDataFromClass(const TSubclassOf<AShooterWeapon>& InWeaponClass, const UDataTable* WeaponDataTable)
+{
+	WeaponClass = InWeaponClass;
+
+	if (!WeaponDataTable)
+	{
+		GetPickupMesh()->SetStaticMesh(nullptr);
+		UE_LOG(LogUEGameJam, Warning, TEXT("Dropped weapon pickup %s has no weapon data table."), *GetName());
+		return;
+	}
+
+	WeaponType.DataTable = WeaponDataTable;
+
+	const FString ContextString = TEXT("ShooterPickup");
+	for (const FName& RowName : WeaponDataTable->GetRowNames())
+	{
+		FWeaponTableRow* WeaponData = WeaponDataTable->FindRow<FWeaponTableRow>(RowName, ContextString);
+		if (WeaponData && WeaponData->WeaponToSpawn == InWeaponClass)
+		{
+			WeaponType.DataTable = WeaponDataTable;
+			WeaponType.RowName = RowName;
+			ApplyWeaponData(*WeaponData);
+			return;
+		}
+	}
+
+	GetPickupMesh()->SetStaticMesh(nullptr);
+	UE_LOG(LogUEGameJam, Warning, TEXT("Could not find weapon pickup data for dropped weapon class %s."), *GetNameSafe(InWeaponClass.Get()));
+}
+
+void AShooterPickup::ApplyWeaponData(const FWeaponTableRow& WeaponData)
+{
+	WeaponClass = WeaponData.WeaponToSpawn;
+	GetPickupMesh()->SetStaticMesh(WeaponData.StaticMesh.LoadSynchronous());
+}
+
+void AShooterPickup::HandlePickupConsumed(AShooterCharacter* Character)
+{
+	if (bShouldRespawn)
+	{
+		SetPickupEnabled(false, Character);
+		GetWorld()->GetTimerManager().SetTimer(RespawnTimer, this, &AShooterPickup::RespawnPickup, RespawnTime, false);
+		return;
+	}
+
+	if (Character)
+	{
+		Character->UnregisterPickupCandidate(this);
+	}
+
+	Destroy();
+}
+
+void AShooterPickup::SpawnDroppedWeaponPickup(AShooterCharacter* Character, const TSubclassOf<AShooterWeapon>& DroppedWeaponClass)
+{
+	if (!Character || !DroppedWeaponClass)
+	{
+		return;
+	}
+
+	TSubclassOf<AShooterPickup> PickupClass = DroppedPickupClass->GetClass();
+	if (!PickupClass)
+	{
+		return;
+	}
+
+	FTransform DropTransform = GetActorTransform();
+	AShooterPickup* DroppedPickup = GetWorld()->SpawnActorDeferred<AShooterPickup>(PickupClass, DropTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (DroppedPickup)
+	{
+		DroppedPickup->InitializeDroppedWeapon(DroppedWeaponClass, WeaponType.DataTable);
+		UGameplayStatics::FinishSpawningActor(DroppedPickup, DropTransform);
+	}
 }
