@@ -80,6 +80,34 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Slide", meta = (ClampMin = 0))
 	float SlideDeceleration = 500.0f;
 
+	/** 蹬墙跳检测距离，表示胶囊体外额外向周围探测的距离 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = 0, Units = "cm"))
+	float WallJumpTraceDistance = 40.0f;
+
+	/** 蹬墙跳的水平弹离速度，数值越大离墙越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = 0, Units = "cm/s"))
+	float WallJumpHorizontalStrength = 850.0f;
+
+	/** 蹬墙跳的垂直起跳速度，数值越大跳得越高 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = 0, Units = "cm/s"))
+	float WallJumpVerticalStrength = 650.0f;
+
+	/** 允许蹬墙跳的墙面法线最大垂直分量，用于过滤地面、斜坡和天花板 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = 0, ClampMax = 1))
+	float WallJumpMaxWallNormalZ = 0.25f;
+
+	/** 选择蹬墙跳墙面时参考的最小朝墙角度，数值越低越容易缓存贴墙状态 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = -1, ClampMax = 1))
+	float WallJumpMinApproachDot = 0.05f;
+
+	/** 空中水平速度达到这个值时，才会用朝墙角度来优先选择墙面 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = 0, Units = "cm/s"))
+	float WallJumpMinAirHorizontalSpeed = 100.0f;
+
+	/** 判定为同一面墙的法线相似度，数值越高越容易允许相邻墙面连续蹬跳 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Wall Jump", meta = (ClampMin = -1, ClampMax = 1))
+	float WallJumpSameWallDot = 0.85f;
+
 	/** 踢击时播放的动画蒙太奇 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick")
 	UAnimMontage* KickMontage;
@@ -167,6 +195,18 @@ protected:
 	/** Current slide speed along the locked slide direction */
 	float CurrentSlideSpeed = 0.0f;
 
+	/** Wall normal cached from the most recent airborne wall contact */
+	FVector LastWallContactNormal = FVector::ZeroVector;
+
+	/** Whether there is a recent airborne wall contact cached */
+	bool bHasRecentWallContact = false;
+
+	/** Wall normal used by the last successful wall jump before landing */
+	FVector LastWallJumpNormal = FVector::ZeroVector;
+
+	/** Whether the character has wall jumped since the last landing */
+	bool bHasWallJumpedSinceLanded = false;
+
 	UPROPERTY(EditAnywhere, Category ="Destruction", meta = (ClampMin = 0, ClampMax = 10, Units = "s"))
 	float RespawnTime = 5.0f;
 
@@ -198,6 +238,9 @@ protected:
 
 	/** Set up input action bindings */
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
+
+	/** Resets wall jump limits when the character touches ground */
+	virtual void Landed(const FHitResult& Hit) override;
 
 public:
 
@@ -317,6 +360,18 @@ protected:
 
 	/** Keeps slide speed and cancel conditions updated */
 	void UpdateSlide(float DeltaSeconds);
+
+	/** Updates the cached nearby wall while airborne */
+	void UpdateWallJumpContact();
+
+	/** Clears the cached nearby wall */
+	void ClearWallJumpContact();
+
+	/** Attempts to launch away from a nearby wall while airborne */
+	bool TryWallJump();
+
+	/** Finds a valid nearby wall normal for wall jumping */
+	bool FindWallJumpSurface(FVector& OutWallNormal) const;
 
 	/** Called when this character's HP is depleted */
 	void Die();

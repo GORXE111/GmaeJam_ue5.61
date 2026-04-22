@@ -60,6 +60,7 @@ void AShooterCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	UpdateSlide(DeltaSeconds);
+	UpdateWallJumpContact();
 
 	UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent();
 	if (!FirstPersonCamera)
