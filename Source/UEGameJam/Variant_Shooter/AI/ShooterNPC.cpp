@@ -53,6 +53,26 @@ float AShooterNPC::TakeDamage(float Damage, struct FDamageEvent const& DamageEve
 	return Damage;
 }
 
+void AShooterNPC::ApplyPush(const FVector& PushVelocity)
+{
+	if (PushVelocity.IsNearlyZero())
+	{
+		return;
+	}
+
+	if (!bIsDead)
+	{
+		LaunchCharacter(PushVelocity, true, false);
+		return;
+	}
+
+	USkeletalMeshComponent* ThirdPersonMesh = GetMesh();
+	if (ThirdPersonMesh && ThirdPersonMesh->IsSimulatingPhysics())
+	{
+		ThirdPersonMesh->AddImpulse(PushVelocity, NAME_None, true);
+	}
+}
+
 void AShooterNPC::AttachWeaponMeshes(AShooterWeapon* WeaponToAttach)
 {
 	const FAttachmentTransformRules AttachmentRule(EAttachmentRule::SnapToTarget, false);

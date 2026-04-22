@@ -481,6 +481,7 @@ void AShooterCharacter::DoKick()
 		}
 
 		AShooterNPC* HitNPC = Cast<AShooterNPC>(OverlappingActor);
+		FVector PushVelocity = FVector::ZeroVector;
 		if (HitNPC && KickPushStrength > 0.0f)
 		{
 			FVector PushDirection = HitNPC->GetActorLocation() - GetActorLocation();
@@ -493,9 +494,14 @@ void AShooterCharacter::DoKick()
 				PushDirection.Normalize();
 			}
 
-			HitNPC->LaunchCharacter(PushDirection * KickPushStrength, true, false);
+			PushVelocity = PushDirection * KickPushStrength;
 		}
 		
 		UGameplayStatics::ApplyDamage(OverlappingActor, KickDamage, GetController(), this, DamageTypeClass);
+
+		if (HitNPC && !PushVelocity.IsNearlyZero())
+		{
+			HitNPC->ApplyPush(PushVelocity);
+		}
 	}
 }

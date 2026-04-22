@@ -102,6 +102,9 @@ public:
 	/** Handle incoming damage */
 	virtual float TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
+	/** Applies a launch-style push before death or a physics impulse after ragdoll death */
+	void ApplyPush(const FVector& PushVelocity);
+
 public:
 
 	//~Begin IShooterWeaponHolder interface

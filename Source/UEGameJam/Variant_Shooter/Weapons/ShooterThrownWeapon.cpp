@@ -140,5 +140,5 @@ void AShooterThrownWeapon::ProcessHit(AActor* HitActor)
 		PushDirection.Normalize();
 	}
 
-	HitNPC->LaunchCharacter(PushDirection * PushStrength, true, false);
+	HitNPC->ApplyPush(PushDirection * PushStrength);
 }
