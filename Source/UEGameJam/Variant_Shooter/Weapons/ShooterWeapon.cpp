@@ -13,6 +13,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
 
 AShooterWeapon::AShooterWeapon()
 {
@@ -215,6 +217,9 @@ void AShooterWeapon::FireProjectile(const FVector& TargetLocation)
 	// play the firing montage
 	WeaponOwner->PlayFiringMontage(FiringMontage);
 
+	// play shot feedback
+	PlayFiringEffects();
+
 	// add recoil
 	WeaponOwner->AddWeaponRecoil(FiringRecoil);
 
@@ -223,6 +228,31 @@ void AShooterWeapon::FireProjectile(const FVector& TargetLocation)
 
 	// update the weapon HUD
 	WeaponOwner->UpdateWeaponHUD(CurrentBullets, MagazineSize);
+}
+
+void AShooterWeapon::PlayFiringEffects()
+{
+	if (!FirstPersonMesh)
+	{
+		return;
+	}
+
+	if (FiringSound)
+	{
+		UGameplayStatics::SpawnSoundAttached(FiringSound, FirstPersonMesh, MuzzleSocketName);
+	}
+
+	if (MuzzleEffect)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAttached(
+			MuzzleEffect,
+			FirstPersonMesh,
+			MuzzleSocketName,
+			FVector::ZeroVector,
+			FRotator::ZeroRotator,
+			EAttachLocation::SnapToTarget,
+			true);
+	}
 }
 
 FTransform AShooterWeapon::CalculateProjectileSpawnTransform(const FVector& TargetLocation) const

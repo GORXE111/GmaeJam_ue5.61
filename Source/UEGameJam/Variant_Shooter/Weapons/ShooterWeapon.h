@@ -16,6 +16,8 @@ class UDamageType;
 class USkeletalMeshComponent;
 class UAnimMontage;
 class UAnimInstance;
+class USoundBase;
+class UNiagaraSystem;
 
 /**
  *  Base class for a simple first person shooter weapon
@@ -63,6 +65,14 @@ protected:
 	/** AnimInstance class to set for the third person character mesh when this weapon is active */
 	UPROPERTY(EditAnywhere, Category="Animation")
 	TSubclassOf<UAnimInstance> ThirdPersonAnimInstanceClass;
+
+	/** 射击成功时在枪口播放的MetaSound或普通声音资源，留空则不播放声音 */
+	UPROPERTY(EditAnywhere, Category="Effects")
+	USoundBase* FiringSound;
+
+	/** 射击成功时在枪口播放的Niagara特效，留空则不播放特效 */
+	UPROPERTY(EditAnywhere, Category="Effects")
+	UNiagaraSystem* MuzzleEffect;
 
 	/** Cone half-angle for variance while aiming */
 	UPROPERTY(EditAnywhere, Category="Aim", meta = (ClampMin = 0, ClampMax = 90, Units = "Degrees"))
@@ -162,6 +172,9 @@ protected:
 
 	/** Fire a projectile towards the target location */
 	virtual void FireProjectile(const FVector& TargetLocation);
+
+	/** Plays the sound and visual effects for a successful shot */
+	void PlayFiringEffects();
 
 	/** Calculates the spawn transform for projectiles shot by this weapon */
 	FTransform CalculateProjectileSpawnTransform(const FVector& TargetLocation) const;
