@@ -59,6 +59,8 @@ void AShooterCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	UpdateSlide(DeltaSeconds);
+
 	UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent();
 	if (!FirstPersonCamera)
 	{
@@ -72,6 +74,8 @@ void AShooterCharacter::Tick(float DeltaSeconds)
 
 void AShooterCharacter::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
+	StopSlide(true);
+
 	Super::EndPlay(EndPlayReason);
 
 	// clear the respawn timer
@@ -104,6 +108,12 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		if (KickAction)
 		{
 			EnhancedInputComponent->BindAction(KickAction, ETriggerEvent::Started, this, &AShooterCharacter::DoKick);
+		}
+
+		// Slide
+		if (SlideAction)
+		{
+			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Started, this, &AShooterCharacter::DoSlide);
 		}
 	}
 
@@ -433,6 +443,8 @@ void AShooterCharacter::CleanPickupCandidates()
 
 void AShooterCharacter::Die()
 {
+	StopSlide(true);
+
 	// deactivate the weapon
 	if (IsValid(CurrentWeapon))
 	{

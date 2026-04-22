@@ -23,7 +23,8 @@ UENUM(BlueprintType)
 enum class EShooterCharacterAction : uint8
 {
 	None,
-	Kick
+	Kick,
+	Slide
 };
 
 /**
@@ -62,6 +63,22 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category ="Input")
 	class UInputAction* SlideAction;
+
+	/** 滑铲时使用的水平移动速度，数值越大向前滑得越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Slide", meta = (ClampMin = 0, Units = "cm/s"))
+	float SlideSpeed = 1200.0f;
+
+	/** 滑铲时胶囊体的半高，用于让玩家保持较低姿态 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Slide", meta = (ClampMin = 0, Units = "cm"))
+	float SlideCapsuleHalfHeight = 48.0f;
+
+	/** 滑铲速度低于这个值时会尝试停止滑铲 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Slide", meta = (ClampMin = 0, Units = "cm/s"))
+	float SlideStopSpeed = 400.0f;
+
+	/** 滑铲时每秒降低的速度，单位为厘米每平方秒，数值越大滑铲减速越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Slide", meta = (ClampMin = 0))
+	float SlideDeceleration = 500.0f;
 
 	/** 踢击时播放的动画蒙太奇 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Kick")
@@ -138,6 +155,18 @@ protected:
 	/** Timer used to finish the current character action */
 	FTimerHandle ActionTimer;
 
+	/** Capsule half height before entering slide */
+	float OriginalSlideCapsuleHalfHeight = 0.0f;
+
+	/** Max walk speed before entering slide */
+	float OriginalSlideMaxWalkSpeed = 0.0f;
+
+	/** Direction locked when entering slide */
+	FVector SlideDirection = FVector::ForwardVector;
+
+	/** Current slide speed along the locked slide direction */
+	float CurrentSlideSpeed = 0.0f;
+
 	UPROPERTY(EditAnywhere, Category ="Destruction", meta = (ClampMin = 0, ClampMax = 10, Units = "s"))
 	float RespawnTime = 5.0f;
 
@@ -197,9 +226,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoKick();
 
+	/** Handles slide input */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoSlide();
+
 	/** Returns true when any character action is active */
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsCharacterActionActive() const;
+
+	/** Returns true when this character is sliding */
+	UFUNCTION(BlueprintPure, Category="Action")
+	bool IsSliding() const;
 
 	/** Registers a pickup currently in range */
 	void RegisterPickupCandidate(AShooterPickupBase* Pickup);
@@ -248,6 +285,12 @@ public:
 
 protected:
 
+	/** Handles move inputs from either controls or UI interfaces */
+	virtual void DoMove(float Right, float Forward) override;
+
+	/** Handles jump start inputs from either controls or UI interfaces */
+	virtual void DoJumpStart() override;
+
 	/** Returns true if the character already owns a weapon of the given class */
 	AShooterWeapon* FindWeaponOfType(TSubclassOf<AShooterWeapon> WeaponClass) const;
 
@@ -262,6 +305,18 @@ protected:
 
 	/** Finishes the current character action */
 	void FinishCharacterAction();
+
+	/** Starts the slide action */
+	bool StartSlide();
+
+	/** Stops the slide action; returns false if the full-height capsule is blocked */
+	bool StopSlide(bool bForceRestore);
+
+	/** Returns true if the slide capsule can safely restore to full height */
+	bool CanRestoreSlideCapsule() const;
+
+	/** Keeps slide speed and cancel conditions updated */
+	void UpdateSlide(float DeltaSeconds);
 
 	/** Called when this character's HP is depleted */
 	void Die();
