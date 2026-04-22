@@ -5,11 +5,13 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/World.h"
 #include "ShooterProjectile.h"
+#include "ShooterThrownWeapon.h"
 #include "ShooterWeaponHolder.h"
 #include "Components/SceneComponent.h"
 #include "TimerManager.h"
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 
 AShooterWeapon::AShooterWeapon()
@@ -34,6 +36,8 @@ AShooterWeapon::AShooterWeapon()
 	ThirdPersonMesh->SetCollisionProfileName(FName("NoCollision"));
 	ThirdPersonMesh->SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType::WorldSpaceRepresentation);
 	ThirdPersonMesh->bOwnerNoSee = true;
+
+	ThrownWeaponClass = AShooterThrownWeapon::StaticClass();
 }
 
 void AShooterWeapon::BeginPlay()
@@ -121,6 +125,34 @@ void AShooterWeapon::StopFiring()
 
 	// clear the refire timer
 	GetWorld()->GetTimerManager().ClearTimer(RefireTimer);
+}
+
+
+AShooterThrownWeapon* AShooterWeapon::SpawnThrownWeapon(const FVector& TargetLocation, float Damage, TSubclassOf<UDamageType> DamageType, float PushStrength, AController* DamageInstigator)
+{
+	if (!GetWorld())
+	{
+		return nullptr;
+	}
+
+	if (!ThrownWeaponClass)
+	{
+		ThrownWeaponClass = AShooterThrownWeapon::StaticClass();
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.TransformScaleMethod = ESpawnActorScaleMethod::OverrideRootScale;
+	SpawnParams.Owner = GetOwner();
+	SpawnParams.Instigator = PawnOwner;
+
+	AShooterThrownWeapon* ThrownWeapon = GetWorld()->SpawnActor<AShooterThrownWeapon>(ThrownWeaponClass, CalculateProjectileSpawnTransform(TargetLocation), SpawnParams);
+	if (ThrownWeapon)
+	{
+		ThrownWeapon->InitializeThrownWeapon(ThirdPersonMesh, Damage, DamageType, PushStrength, DamageInstigator, GetOwner());
+	}
+
+	return ThrownWeapon;
 }
 
 void AShooterWeapon::Fire()

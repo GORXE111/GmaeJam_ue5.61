@@ -480,8 +480,6 @@ void AShooterCharacter::DoKick()
 			continue;
 		}
 
-		UGameplayStatics::ApplyDamage(OverlappingActor, KickDamage, GetController(), this, DamageTypeClass);
-
 		AShooterNPC* HitNPC = Cast<AShooterNPC>(OverlappingActor);
 		if (HitNPC && KickPushStrength > 0.0f)
 		{
@@ -497,5 +495,7 @@ void AShooterCharacter::DoKick()
 
 			HitNPC->LaunchCharacter(PushDirection * KickPushStrength, true, false);
 		}
+		
+		UGameplayStatics::ApplyDamage(OverlappingActor, KickDamage, GetController(), this, DamageTypeClass);
 	}
 }

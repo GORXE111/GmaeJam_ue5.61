@@ -148,6 +148,12 @@ void AShooterCharacter::DoStartFiring()
 	// fire the current weapon
 	if (CurrentWeapon)
 	{
+		if (CurrentWeapon->GetBulletCount() <= 0)
+		{
+			ThrowCurrentWeapon();
+			return;
+		}
+
 		CurrentWeapon->StartFiring();
 	}
 }
@@ -163,32 +169,52 @@ void AShooterCharacter::DoStopFiring()
 
 void AShooterCharacter::DoSwitchWeapon()
 {
-	// ensure we have at least two weapons two switch between
-	if (OwnedWeapons.Num() > 1)
+	OwnedWeapons.RemoveAllSwap([](AShooterWeapon* Weapon)
 	{
-		// deactivate the old weapon
-		CurrentWeapon->DeactivateWeapon();
+		return !IsValid(Weapon);
+	});
 
-		// find the index of the current weapon in the owned list
-		int32 WeaponIndex = OwnedWeapons.Find(CurrentWeapon);
-
-		// is this the last weapon?
-		if (WeaponIndex == OwnedWeapons.Num() - 1)
-		{
-			// loop back to the beginning of the array
-			WeaponIndex = 0;
-		}
-		else {
-			// select the next weapon index
-			++WeaponIndex;
-		}
-
-		// set the new weapon as current
-		CurrentWeapon = OwnedWeapons[WeaponIndex];
-
-		// activate the new weapon
-		CurrentWeapon->ActivateWeapon();
+	if (OwnedWeapons.Num() <= 0)
+	{
+		CurrentWeapon = nullptr;
+		OnBulletCountUpdated.Broadcast(0, 0);
+		return;
 	}
+
+	if (!IsValid(CurrentWeapon))
+	{
+		CurrentWeapon = OwnedWeapons[0];
+		CurrentWeapon->ActivateWeapon();
+		return;
+	}
+
+	// find the index of the current weapon in the owned list
+	int32 WeaponIndex = OwnedWeapons.Find(CurrentWeapon);
+	if (WeaponIndex == INDEX_NONE)
+	{
+		CurrentWeapon->DeactivateWeapon();
+		CurrentWeapon = OwnedWeapons[0];
+		CurrentWeapon->ActivateWeapon();
+		return;
+	}
+
+	// ensure we have at least two weapons to switch between
+	if (OwnedWeapons.Num() <= 1)
+	{
+		return;
+	}
+
+	// deactivate the old weapon
+	CurrentWeapon->DeactivateWeapon();
+
+	// select the next weapon index, looping back to the beginning of the array
+	WeaponIndex = (WeaponIndex + 1) % OwnedWeapons.Num();
+
+	// set the new weapon as current
+	CurrentWeapon = OwnedWeapons[WeaponIndex];
+
+	// activate the new weapon
+	CurrentWeapon->ActivateWeapon();
 }
 
 void AShooterCharacter::DoPickup()
@@ -440,6 +466,24 @@ void AShooterCharacter::CleanPickupCandidates()
 	{
 		return !PickupCandidate.IsValid() || !PickupCandidate->IsPickupEnabled();
 	});
+}
+
+void AShooterCharacter::ThrowCurrentWeapon()
+{
+	if (!IsValid(CurrentWeapon))
+	{
+		return;
+	}
+
+	AShooterWeapon* WeaponToThrow = CurrentWeapon.Get();
+	WeaponToThrow->StopFiring();
+	WeaponToThrow->SpawnThrownWeapon(GetWeaponTargetLocation(), KickDamage, KickDamageType, KickPushStrength, GetController());
+
+	OwnedWeapons.Remove(WeaponToThrow);
+	CurrentWeapon = nullptr;
+	WeaponToThrow->Destroy();
+
+	OnBulletCountUpdated.Broadcast(0, 0);
 }
 
 void AShooterCharacter::Die()

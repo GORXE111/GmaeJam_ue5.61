@@ -10,6 +10,9 @@
 
 class IShooterWeaponHolder;
 class AShooterProjectile;
+class AShooterThrownWeapon;
+class AController;
+class UDamageType;
 class USkeletalMeshComponent;
 class UAnimMontage;
 class UAnimInstance;
@@ -109,6 +112,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Perception")
 	FName ShotNoiseTag = FName("Shot");
 
+	/** 子弹用完后按射击键扔出的投掷武器类型，留空时使用默认原生投掷物 */
+	UPROPERTY(EditAnywhere, Category="Throw")
+	TSubclassOf<AShooterThrownWeapon> ThrownWeaponClass;
+
 public:	
 
 	/** Constructor */
@@ -141,6 +148,9 @@ public:
 
 	/** Stop firing this weapon */
 	void StopFiring();
+
+	/** Spawns this weapon as a thrown weapon projectile. */
+	AShooterThrownWeapon* SpawnThrownWeapon(const FVector& TargetLocation, float Damage, TSubclassOf<UDamageType> DamageType, float PushStrength, AController* DamageInstigator);
 
 protected:
 

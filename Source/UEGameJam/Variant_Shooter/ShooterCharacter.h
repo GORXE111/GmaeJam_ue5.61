@@ -343,6 +343,9 @@ protected:
 	/** Removes invalid pickup candidates */
 	void CleanPickupCandidates();
 
+	/** Throws the current empty weapon and leaves this character unarmed */
+	void ThrowCurrentWeapon();
+
 	/** Starts a character action if no other character action is active */
 	bool TryStartCharacterAction(EShooterCharacterAction Action, float Duration);
 
