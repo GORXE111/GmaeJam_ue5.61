@@ -9,6 +9,7 @@
 
 class AShooterWeapon;
 class AShooterPickupBase;
+class UAnimInstance;
 class UAnimMontage;
 class UDamageType;
 class UInputAction;
@@ -29,7 +30,7 @@ enum class EShooterCharacterAction : uint8
 
 /**
  *  A player controllable first person shooter character
- *  Manages a weapon inventory through the IShooterWeaponHolder interface
+ *  Manages a single weapon slot through the IShooterWeaponHolder interface
  *  Manages health and death
  */
 UCLASS(abstract)
@@ -51,7 +52,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* FireAction;
 
-	/** Switch weapon input action */
+	/** 切换武器输入动作，仅为兼容蓝图绑定保留，当前不会产生实际切枪效果 */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* SwitchWeaponAction;
 
@@ -136,6 +137,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category ="Weapons")
 	FName ThirdPersonWeaponSocket = FName("HandGrip_R");
 
+	/** 玩家空手时第一人称身体使用的动画蓝图；留空时使用角色蓝图初始动画 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Animation")
+	TSubclassOf<UAnimInstance> FirstPersonUnarmedAnimInstanceClass;
+
+	/** 玩家空手时第三人称身体使用的动画蓝图；留空时使用角色蓝图初始动画 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Animation")
+	TSubclassOf<UAnimInstance> ThirdPersonUnarmedAnimInstanceClass;
+
 	/** Max distance to use for aim traces */
 	UPROPERTY(EditAnywhere, Category ="Aim", meta = (ClampMin = 0, ClampMax = 100000, Units = "cm"))
 	float MaxAimDistance = 10000.0f;
@@ -167,11 +176,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Team")
 	uint8 TeamByte = 0;
 
-	/** List of weapons picked up by the character */
-	TArray<AShooterWeapon*> OwnedWeapons;
-
-	/** Weapon currently equipped and ready to shoot with */
+	/** The only weapon currently equipped and ready to shoot with */
 	TObjectPtr<AShooterWeapon> CurrentWeapon;
+
+	/** Initial first person anim class cached after Blueprint overrides */
+	UPROPERTY(Transient)
+	TSubclassOf<UAnimInstance> DefaultFirstPersonUnarmedAnimInstanceClass;
+
+	/** Initial third person anim class cached after Blueprint overrides */
+	UPROPERTY(Transient)
+	TSubclassOf<UAnimInstance> DefaultThirdPersonUnarmedAnimInstanceClass;
 
 	/** Pickups currently overlapping this character */
 	TArray<TWeakObjectPtr<AShooterPickupBase>> PickupCandidates;
@@ -334,9 +348,6 @@ protected:
 	/** Handles jump start inputs from either controls or UI interfaces */
 	virtual void DoJumpStart() override;
 
-	/** Returns true if the character already owns a weapon of the given class */
-	AShooterWeapon* FindWeaponOfType(TSubclassOf<AShooterWeapon> WeaponClass) const;
-
 	/** Finds the nearest valid pickup candidate */
 	AShooterPickupBase* FindBestPickupCandidate();
 
@@ -345,6 +356,18 @@ protected:
 
 	/** Throws the current empty weapon and leaves this character unarmed */
 	void ThrowCurrentWeapon();
+
+	/** Caches the animation classes used when this character has no weapon */
+	void CacheDefaultUnarmedAnimInstances();
+
+	/** Restores this character's meshes to the unarmed animation classes */
+	void ApplyUnarmedAnimInstances();
+
+	/** Sets both first person and third person character animation classes */
+	void SetCharacterAnimInstanceClasses(TSubclassOf<UAnimInstance> FirstPersonAnimClass, TSubclassOf<UAnimInstance> ThirdPersonAnimClass);
+
+	/** Clears the current weapon slot and optionally destroys the weapon actor */
+	void ClearCurrentWeapon(bool bDestroyWeapon);
 
 	/** Starts a character action if no other character action is active */
 	bool TryStartCharacterAction(EShooterCharacterAction Action, float Duration);
