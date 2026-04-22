@@ -95,6 +95,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category ="Aim", meta = (ClampMin = 0, ClampMax = 100000, Units = "cm"))
 	float MaxAimDistance = 10000.0f;
 
+	/** 玩家默认视野角，静止或低速移动时相机会平滑回到这个FOV */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
+	float DefaultCameraFOV = 100.0f;
+
+	/** 玩家跑起来时过渡到的视野角，用于增强速度感 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
+	float RunningCameraFOV = 120.0f;
+
+	/** 水平移动速度达到这个值时视为跑起来，单位为厘米每秒 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Camera", meta = (ClampMin = 0, Units = "cm/s"))
+	float RunFOVSpeedThreshold = 450.0f;
+
+	/** 相机FOV向目标值过渡的速度，数值越大变化越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Camera", meta = (ClampMin = 0))
+	float CameraFOVInterpSpeed = 8.0f;
+
 	/** Max HP this character can have */
 	UPROPERTY(EditAnywhere, Category="Health")
 	float MaxHP = 500.0f;
@@ -144,6 +160,9 @@ protected:
 
 	/** Gameplay initialization */
 	virtual void BeginPlay() override;
+
+	/** Updates camera effects */
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** Gameplay cleanup */
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;

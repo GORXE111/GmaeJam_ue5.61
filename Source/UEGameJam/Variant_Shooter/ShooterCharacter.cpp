@@ -18,6 +18,8 @@
 
 AShooterCharacter::AShooterCharacter()
 {
+	PrimaryActorTick.bCanEverTick = true;
+
 	// create the noise emitter component
 	PawnNoiseEmitter = CreateDefaultSubobject<UPawnNoiseEmitterComponent>(TEXT("Pawn Noise Emitter"));
 
@@ -46,8 +48,26 @@ void AShooterCharacter::BeginPlay()
 	// reset HP to max
 	CurrentHP = MaxHP;
 
+	// initialize camera FOV after Blueprint overrides have been applied
+	GetFirstPersonCameraComponent()->SetFieldOfView(DefaultCameraFOV);
+
 	// update the HUD
 	OnDamaged.Broadcast(1.0f);
+}
+
+void AShooterCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent();
+	if (!FirstPersonCamera)
+	{
+		return;
+	}
+
+	const float TargetFOV = GetVelocity().Size2D() >= RunFOVSpeedThreshold ? RunningCameraFOV : DefaultCameraFOV;
+	const float NewFOV = FMath::FInterpTo(FirstPersonCamera->FieldOfView, TargetFOV, DeltaSeconds, CameraFOVInterpSpeed);
+	FirstPersonCamera->SetFieldOfView(NewFOV);
 }
 
 void AShooterCharacter::EndPlay(EEndPlayReason::Type EndPlayReason)
