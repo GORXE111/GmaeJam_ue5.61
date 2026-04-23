@@ -16,6 +16,7 @@ class UInputAction;
 class UInputComponent;
 class UPawnNoiseEmitterComponent;
 class USphereComponent;
+struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBulletCountUpdatedDelegate, int32, MagazineSize, int32, Bullets);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDamagedDelegate, float, LifePercent);
@@ -205,11 +206,17 @@ protected:
 	/** Timer used to finish the current character action */
 	FTimerHandle ActionTimer;
 
+	/** Timer used to trigger the delayed kick hit check */
+	FTimerHandle KickDamageTimer;
+
 	/** Capsule half height before entering slide */
 	float OriginalSlideCapsuleHalfHeight = 0.0f;
 
 	/** Max walk speed before entering slide */
 	float OriginalSlideMaxWalkSpeed = 0.0f;
+
+	/** Most recent local-space move input used to choose the next slide direction */
+	FVector2D CachedMoveInput = FVector2D::ZeroVector;
 
 	/** Direction locked when entering slide */
 	FVector SlideDirection = FVector::ForwardVector;
@@ -368,6 +375,9 @@ protected:
 	/** Handles move inputs from either controls or UI interfaces */
 	virtual void DoMove(float Right, float Forward) override;
 
+	/** Clears the cached slide input when movement input is released */
+	void OnMoveInputCompleted(const FInputActionValue& Value);
+
 	/** Handles jump start inputs from either controls or UI interfaces */
 	virtual void DoJumpStart() override;
 
@@ -398,8 +408,14 @@ protected:
 	/** Finishes the current character action */
 	void FinishCharacterAction();
 
+	/** Executes kick overlap damage at the hard-coded montage timing */
+	void ExecuteKickDamage();
+
 	/** Starts the slide action */
 	bool StartSlide();
+
+	/** Converts the cached move input into one of the allowed slide directions */
+	bool TryGetSlideInputDirection(FVector& OutSlideDirection) const;
 
 	/** Stops the slide action; returns false if the full-height capsule is blocked */
 	bool StopSlide(bool bForceRestore);

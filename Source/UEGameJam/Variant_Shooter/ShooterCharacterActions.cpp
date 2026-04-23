@@ -56,7 +56,17 @@ void AShooterCharacter::DoMove(float Right, float Forward)
 		return;
 	}
 
+	constexpr float SlideInputDeadZone = 0.1f;
+	const FVector2D MoveInput(Right, Forward);
+	CachedMoveInput = MoveInput.SizeSquared() > FMath::Square(SlideInputDeadZone) ? MoveInput : FVector2D::ZeroVector;
+
 	Super::DoMove(Right, Forward);
+}
+
+void AShooterCharacter::OnMoveInputCompleted(const FInputActionValue& Value)
+{
+	(void)Value;
+	CachedMoveInput = FVector2D::ZeroVector;
 }
 
 void AShooterCharacter::DoJumpStart()
@@ -111,9 +121,7 @@ bool AShooterCharacter::StartSlide()
 		return false;
 	}
 
-	SlideDirection = GetVelocity();
-	SlideDirection.Z = 0.0f;
-	if (!SlideDirection.Normalize())
+	if (!TryGetSlideInputDirection(SlideDirection))
 	{
 		return false;
 	}
@@ -147,6 +155,54 @@ bool AShooterCharacter::StartSlide()
 	MovementComponent->Velocity = NewVelocity;
 
 	return true;
+}
+
+bool AShooterCharacter::TryGetSlideInputDirection(FVector& OutSlideDirection) const
+{
+	constexpr float SlideInputDeadZone = 0.1f;
+
+	OutSlideDirection = FVector::ZeroVector;
+
+	const float RightInput = CachedMoveInput.X;
+	const float ForwardInput = CachedMoveInput.Y;
+	if (ForwardInput < -SlideInputDeadZone)
+	{
+		return false;
+	}
+
+	FVector LocalSlideDirection = FVector::ZeroVector;
+	if (ForwardInput > SlideInputDeadZone)
+	{
+		LocalSlideDirection.X = 1.0f;
+
+		if (RightInput < -SlideInputDeadZone)
+		{
+			LocalSlideDirection.Y = -1.0f;
+		}
+		else if (RightInput > SlideInputDeadZone)
+		{
+			LocalSlideDirection.Y = 1.0f;
+		}
+	}
+	else if (RightInput < -SlideInputDeadZone)
+	{
+		LocalSlideDirection.Y = -1.0f;
+	}
+	else if (RightInput > SlideInputDeadZone)
+	{
+		LocalSlideDirection.Y = 1.0f;
+	}
+	else
+	{
+		return false;
+	}
+
+	const FVector ActorForward = GetActorForwardVector();
+	const FVector ActorRight = GetActorRightVector();
+	OutSlideDirection = (ActorForward * LocalSlideDirection.X) + (ActorRight * LocalSlideDirection.Y);
+	OutSlideDirection.Z = 0.0f;
+
+	return OutSlideDirection.Normalize();
 }
 
 bool AShooterCharacter::StopSlide(bool bForceRestore)
@@ -461,6 +517,14 @@ void AShooterCharacter::DoKick()
 	{
 		return;
 	}
+
+	GetWorld()->GetTimerManager().ClearTimer(KickDamageTimer);
+	GetWorld()->GetTimerManager().SetTimer(KickDamageTimer, this, &AShooterCharacter::ExecuteKickDamage, 0.3f, false);
+}
+
+void AShooterCharacter::ExecuteKickDamage()
+{
+	GetWorld()->GetTimerManager().ClearTimer(KickDamageTimer);
 
 	if (!KickDamageCollision || KickDamage <= 0.0f)
 	{
