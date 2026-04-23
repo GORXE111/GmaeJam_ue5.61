@@ -237,9 +237,12 @@ void AShooterWeapon::PlayFiringEffects()
 		return;
 	}
 
-	if (FiringSound)
+	const int32 LowAmmoThresholdBullets = MagazineSize > 0 ? FMath::CeilToInt(static_cast<float>(MagazineSize) * LowAmmoThresholdPercent) : 0;
+	const bool bLowAmmo = LowAmmoThresholdBullets > 0 && CurrentBullets <= LowAmmoThresholdBullets;
+	USoundBase* SoundToPlay = bLowAmmo && LowAmmoFiringSound ? LowAmmoFiringSound : FiringSound;
+	if (SoundToPlay)
 	{
-		UGameplayStatics::SpawnSoundAttached(FiringSound, FirstPersonMesh, MuzzleSocketName);
+		UGameplayStatics::SpawnSoundAttached(SoundToPlay, FirstPersonMesh, MuzzleSocketName);
 	}
 
 	if (MuzzleEffect)

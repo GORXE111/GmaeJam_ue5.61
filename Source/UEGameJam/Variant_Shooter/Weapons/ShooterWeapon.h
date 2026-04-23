@@ -70,6 +70,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Effects")
 	USoundBase* FiringSound;
 
+	/** 剩余子弹进入低弹量状态时播放的射击声音，留空则继续使用普通射击声音 */
+	UPROPERTY(EditAnywhere, Category="Effects")
+	USoundBase* LowAmmoFiringSound;
+
+	/** 弹匣剩余子弹低于或等于该比例时，切换为低弹量射击声音 */
+	UPROPERTY(EditAnywhere, Category="Effects", meta = (ClampMin = 0, ClampMax = 1))
+	float LowAmmoThresholdPercent = 0.2f;
+
 	/** 射击成功时在枪口播放的Niagara特效，留空则不播放特效 */
 	UPROPERTY(EditAnywhere, Category="Effects")
 	UNiagaraSystem* MuzzleEffect;
