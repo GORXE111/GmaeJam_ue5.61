@@ -46,6 +46,10 @@ void AShooterCharacter::BeginPlay()
 
 	// reset HP to max
 	CurrentHP = MaxHP;
+	LastSafeLocation = GetActorLocation();
+	LastSafeRotation = GetActorRotation();
+	bHasSafeLocation = true;
+	LastFallRecoveryTime = -SafeLandingMinInterval;
 
 	CacheDefaultUnarmedAnimInstances();
 	if (!IsValid(CurrentWeapon))
@@ -67,6 +71,22 @@ void AShooterCharacter::Tick(float DeltaSeconds)
 	UpdateSlide(DeltaSeconds);
 	UpdateWallJumpContact();
 
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	if (MovementComponent
+		&& MovementComponent->IsFalling()
+		&& bHasSafeLocation
+		&& !bIsRecoveringFromFall
+		&& FallResetDepth > 0.0f)
+	{
+		UWorld* World = GetWorld();
+		const float CurrentWorldTime = World ? World->GetTimeSeconds() : 0.0f;
+		if ((CurrentWorldTime - LastFallRecoveryTime) >= SafeLandingMinInterval
+			&& GetActorLocation().Z <= (LastSafeLocation.Z - FallResetDepth))
+		{
+			RecoverFromDeepFall();
+		}
+	}
+
 	UCameraComponent* FirstPersonCamera = GetFirstPersonCameraComponent();
 	if (!FirstPersonCamera)
 	{
@@ -87,6 +107,63 @@ void AShooterCharacter::EndPlay(EEndPlayReason::Type EndPlayReason)
 	// clear the respawn timer
 	GetWorld()->GetTimerManager().ClearTimer(RespawnTimer);
 	GetWorld()->GetTimerManager().ClearTimer(ActionTimer);
+}
+
+void AShooterCharacter::UpdateSafeLandingTransform()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if ((World->GetTimeSeconds() - LastFallRecoveryTime) < SafeLandingMinInterval)
+	{
+		return;
+	}
+
+	LastSafeLocation = GetActorLocation();
+	LastSafeRotation = GetActorRotation();
+	bHasSafeLocation = true;
+}
+
+void AShooterCharacter::RecoverFromDeepFall()
+{
+	if (bIsRecoveringFromFall || !bHasSafeLocation)
+	{
+		return;
+	}
+
+	bIsRecoveringFromFall = true;
+
+	if (UWorld* World = GetWorld())
+	{
+		LastFallRecoveryTime = World->GetTimeSeconds();
+	}
+
+	StopSlide(true);
+	FinishCharacterAction();
+	ClearWallJumpContact();
+	bHasWallJumpedSinceLanded = false;
+	LastWallJumpNormal = FVector::ZeroVector;
+
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->StopMovementImmediately();
+		MovementComponent->StopActiveMovement();
+		MovementComponent->Velocity = FVector::ZeroVector;
+		MovementComponent->SetMovementMode(MOVE_Walking);
+	}
+
+	SetActorLocationAndRotation(LastSafeLocation, LastSafeRotation, false, nullptr, ETeleportType::TeleportPhysics);
+
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->StopMovementImmediately();
+		MovementComponent->Velocity = FVector::ZeroVector;
+	}
+
+	bIsRecoveringFromFall = false;
 }
 
 void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

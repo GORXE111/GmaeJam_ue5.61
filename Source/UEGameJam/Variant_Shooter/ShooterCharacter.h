@@ -165,6 +165,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Camera", meta = (ClampMin = 0))
 	float CameraFOVInterpSpeed = 8.0f;
 
+	/** 相对最近一次安全落地点，向下掉落超过这个高度后会回传，单位为厘米 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Fall Recovery", meta = (ClampMin = 0, Units = "cm"))
+	float FallResetDepth = 2000.0f;
+
+	/** 深坑回传后至少间隔这么久才允许再次刷新安全点或再次触发回传 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category ="Fall Recovery", meta = (ClampMin = 0, Units = "s"))
+	float SafeLandingMinInterval = 0.2f;
+
 	/** Max HP this character can have */
 	UPROPERTY(EditAnywhere, Category="Health")
 	float MaxHP = 500.0f;
@@ -220,6 +228,21 @@ protected:
 
 	/** Whether the character has wall jumped since the last landing */
 	bool bHasWallJumpedSinceLanded = false;
+
+	/** Most recent grounded location used for deep fall recovery */
+	FVector LastSafeLocation = FVector::ZeroVector;
+
+	/** Rotation stored with the most recent grounded location */
+	FRotator LastSafeRotation = FRotator::ZeroRotator;
+
+	/** Whether a valid safe location has been initialized */
+	bool bHasSafeLocation = false;
+
+	/** Whether a deep fall recovery is currently repositioning this character */
+	bool bIsRecoveringFromFall = false;
+
+	/** Time of the most recent deep fall recovery */
+	float LastFallRecoveryTime = -1.0f;
 
 	UPROPERTY(EditAnywhere, Category ="Destruction", meta = (ClampMin = 0, ClampMax = 10, Units = "s"))
 	float RespawnTime = 5.0f;
@@ -395,6 +418,12 @@ protected:
 
 	/** Attempts to launch away from a nearby wall while airborne */
 	bool TryWallJump();
+
+	/** Updates the most recent safe grounded transform used for deep fall recovery */
+	void UpdateSafeLandingTransform();
+
+	/** Returns the character to the most recent safe grounded transform */
+	void RecoverFromDeepFall();
 
 	/** Finds a valid nearby wall normal for wall jumping */
 	bool FindWallJumpSurface(FVector& OutWallNormal) const;

@@ -87,6 +87,7 @@ void AShooterCharacter::Landed(const FHitResult& Hit)
 	ClearWallJumpContact();
 	bHasWallJumpedSinceLanded = false;
 	LastWallJumpNormal = FVector::ZeroVector;
+	UpdateSafeLandingTransform();
 }
 
 void AShooterCharacter::DoSlide()
