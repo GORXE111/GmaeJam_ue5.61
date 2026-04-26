@@ -24,8 +24,18 @@ public class UEGameJam : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
+		// Editor-only deps（自定义 MaterialExpression 的 Compile 用）
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] {
+				"MaterialEditor",
+				"UnrealEd"
+			});
+		}
+
 		PublicIncludePaths.AddRange(new string[] {
 			"UEGameJam",
+			"UEGameJam/Realm",
 			"UEGameJam/Variant_Horror",
 			"UEGameJam/Variant_Horror/UI",
 			"UEGameJam/Variant_Shooter",
