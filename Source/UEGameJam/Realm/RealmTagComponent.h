@@ -32,6 +32,14 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	/** 读取当前配置的世界类型 */
+	UFUNCTION(BlueprintPure, Category="Realm")
+	ERealmType GetRealmType() const { return RealmType; }
+
+	/** 在运行时/构造时修改所属世界类型（供 C++ 基类构造 CDO 或子类动态切换使用） */
+	UFUNCTION(BlueprintCallable, Category="Realm")
+	void SetRealmType(ERealmType NewType) { RealmType = NewType; }
+
 protected:
 	/** 物体属于表世界还是里世界 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Realm")
