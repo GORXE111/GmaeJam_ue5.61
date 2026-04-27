@@ -11,9 +11,37 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/KismetMathLibrary.h"
+
+namespace
+{
+	static void PrintEnemyCommonDebug(const FString& Msg, const FColor Color)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 1.5f, Color, Msg);
+		}
+		UE_LOG(LogTemp, Log, TEXT("[EnemyTask] %s"), *Msg);
+	}
+
+	static const TCHAR* MoveRequestResultToString(const EPathFollowingRequestResult::Type Result)
+	{
+		switch (Result)
+		{
+		case EPathFollowingRequestResult::Failed:
+			return TEXT("Failed");
+		case EPathFollowingRequestResult::AlreadyAtGoal:
+			return TEXT("AlreadyAtGoal");
+		case EPathFollowingRequestResult::RequestSuccessful:
+			return TEXT("RequestSuccessful");
+		default:
+			return TEXT("Unknown");
+		}
+	}
+}
 
 ////////////////////////////////////////////////////////////////////
 // AcquireTarget
@@ -39,11 +67,17 @@ EStateTreeRunStatus FEnemyAcquireTargetTask::Tick(FStateTreeExecutionContext& Co
 		return EStateTreeRunStatus::Failed;
 	}
 
+	const bool bWasFound = Data.bFound;
+
 	AActor* Player = Data.Controller->FindPlayerByTag();
 	if (!Player)
 	{
 		Data.bFound = false;
 		Data.TargetActor = nullptr;
+		if (bWasFound)
+		{
+			PrintEnemyCommonDebug(TEXT("AcquireTarget: LOST (no player pawn)"), FColor::Silver);
+		}
 		return EStateTreeRunStatus::Running;
 	}
 
@@ -52,6 +86,10 @@ EStateTreeRunStatus FEnemyAcquireTargetTask::Tick(FStateTreeExecutionContext& Co
 	{
 		Data.bFound = false;
 		Data.TargetActor = nullptr;
+		if (bWasFound)
+		{
+			PrintEnemyCommonDebug(TEXT("AcquireTarget: LOST (out of radius)"), FColor::Silver);
+		}
 		return EStateTreeRunStatus::Running;
 	}
 
@@ -76,6 +114,10 @@ EStateTreeRunStatus FEnemyAcquireTargetTask::Tick(FStateTreeExecutionContext& Co
 
 	Data.TargetActor = Player;
 	Data.bFound = true;
+	if (!bWasFound)
+	{
+		PrintEnemyCommonDebug(FString::Printf(TEXT("AcquireTarget: FOUND dist=%.0f"), FMath::Sqrt(DistSq)), FColor::Green);
+	}
 	return EStateTreeRunStatus::Running;
 }
 
@@ -98,18 +140,27 @@ EStateTreeRunStatus FEnemyMoveToTargetTask::EnterState(FStateTreeExecutionContex
 {
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	Data.bArrived = false;
-	Data.TimeSinceRepath = Data.RepathInterval; // 首帧立即请求一次
+	Data.TimeSinceRepath = Data.RepathInterval;
+	Data.TimeSinceDebug = 999.f;
 
 	if (!IsValid(Data.Controller) || !IsValid(Data.Target))
 	{
+		PrintEnemyCommonDebug(
+			FString::Printf(TEXT("MoveToTarget: FAIL (Ctrl=%s, Target=%s)"),
+				IsValid(Data.Controller) ? TEXT("OK") : TEXT("NULL"),
+				IsValid(Data.Target) ? TEXT("OK") : TEXT("NULL")),
+			FColor::Red);
 		return EStateTreeRunStatus::Failed;
 	}
+	PrintEnemyCommonDebug(TEXT("MoveToTarget: ENTER"), FColor::Blue);
 	return EStateTreeRunStatus::Running;
 }
 
 EStateTreeRunStatus FEnemyMoveToTargetTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
 {
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
+	Data.TimeSinceDebug += DeltaTime;
+
 	if (!IsValid(Data.Controller) || !IsValid(Data.Target))
 	{
 		return EStateTreeRunStatus::Failed;
@@ -125,6 +176,7 @@ EStateTreeRunStatus FEnemyMoveToTargetTask::Tick(FStateTreeExecutionContext& Con
 	if (DistSq <= Data.AcceptRadius * Data.AcceptRadius)
 	{
 		Data.bArrived = true;
+		PrintEnemyCommonDebug(FString::Printf(TEXT("MoveToTarget: ARRIVED (dist=%.0f)"), FMath::Sqrt(DistSq)), FColor::Blue);
 		if (UPathFollowingComponent* PathComp = Data.Controller->GetPathFollowingComponent())
 		{
 			PathComp->AbortMove(*Data.Controller, FPathFollowingResultFlags::UserAbort);
@@ -140,7 +192,35 @@ EStateTreeRunStatus FEnemyMoveToTargetTask::Tick(FStateTreeExecutionContext& Con
 		Req.SetAcceptanceRadius(Data.AcceptRadius);
 		Req.SetUsePathfinding(true);
 		Req.SetAllowPartialPath(true);
-		Data.Controller->MoveTo(Req);
+		const FPathFollowingRequestResult MoveResult = Data.Controller->MoveTo(Req);
+		if (MoveResult.Code == EPathFollowingRequestResult::Failed)
+		{
+			if (Data.TimeSinceDebug >= 1.f)
+			{
+				Data.TimeSinceDebug = 0.f;
+				PrintEnemyCommonDebug(
+					FString::Printf(TEXT("MoveToTarget: MOVE REQUEST FAILED (dist=%.0f, AcceptRadius=%.0f)"),
+						FMath::Sqrt(DistSq),
+						Data.AcceptRadius),
+					FColor::Red);
+			}
+			return EStateTreeRunStatus::Running;
+		}
+		if (MoveResult.Code == EPathFollowingRequestResult::AlreadyAtGoal)
+		{
+			Data.bArrived = true;
+			PrintEnemyCommonDebug(TEXT("MoveToTarget: ARRIVED (MoveTo already at goal)"), FColor::Blue);
+			return EStateTreeRunStatus::Succeeded;
+		}
+		if (Data.TimeSinceDebug >= 1.f)
+		{
+			Data.TimeSinceDebug = 0.f;
+			PrintEnemyCommonDebug(
+				FString::Printf(TEXT("MoveToTarget: MoveTo %s (dist=%.0f)"),
+					MoveRequestResultToString(MoveResult.Code),
+					FMath::Sqrt(DistSq)),
+				FColor::Blue);
+		}
 	}
 
 	return EStateTreeRunStatus::Running;
@@ -264,8 +344,10 @@ EStateTreeRunStatus FEnemyFacePlayerTask::EnterState(FStateTreeExecutionContext&
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	if (!IsValid(Data.Enemy))
 	{
+		PrintEnemyCommonDebug(TEXT("FacePlayer: FAIL (Enemy is null)"), FColor::Red);
 		return EStateTreeRunStatus::Failed;
 	}
+	PrintEnemyCommonDebug(TEXT("FacePlayer: ENTER"), FColor::Purple);
 	return EStateTreeRunStatus::Running;
 }
 
@@ -312,6 +394,11 @@ EStateTreeRunStatus FEnemyWaitPhaseTask::EnterState(FStateTreeExecutionContext& 
 {
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	Data.ElapsedTime = 0.f;
+
+	const UEnum* E = StaticEnum<EEnemyAttackPhase>();
+	const FString PhaseName = E ? E->GetNameStringByValue(static_cast<int64>(Data.Phase)) : TEXT("?");
+	PrintEnemyCommonDebug(FString::Printf(TEXT("Phase: %s (%.2fs)"), *PhaseName, Data.Duration), FColor::Cyan);
+
 	return EStateTreeRunStatus::Running;
 }
 
@@ -319,7 +406,12 @@ EStateTreeRunStatus FEnemyWaitPhaseTask::Tick(FStateTreeExecutionContext& Contex
 {
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	Data.ElapsedTime += DeltaTime;
-	return (Data.ElapsedTime >= Data.Duration) ? EStateTreeRunStatus::Succeeded : EStateTreeRunStatus::Running;
+	if (Data.ElapsedTime >= Data.Duration)
+	{
+		PrintEnemyCommonDebug(TEXT("WaitPhase: DONE"), FColor::Cyan);
+		return EStateTreeRunStatus::Succeeded;
+	}
+	return EStateTreeRunStatus::Running;
 }
 
 #if WITH_EDITOR
@@ -337,13 +429,15 @@ EStateTreeRunStatus FEnemySetMovementSpeedTask::EnterState(FStateTreeExecutionCo
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	if (!IsValid(Data.Enemy))
 	{
+		PrintEnemyCommonDebug(TEXT("SetMovementSpeed: FAIL (Enemy is null)"), FColor::Red);
 		return EStateTreeRunStatus::Failed;
 	}
 	if (UCharacterMovementComponent* Move = Data.Enemy->GetCharacterMovement())
 	{
 		Move->MaxWalkSpeed = Data.Speed;
 	}
-	return EStateTreeRunStatus::Running;
+	PrintEnemyCommonDebug(FString::Printf(TEXT("SetMovementSpeed: %.0f"), Data.Speed), FColor::Silver);
+	return EStateTreeRunStatus::Succeeded;
 }
 
 #if WITH_EDITOR

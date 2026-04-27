@@ -7,6 +7,19 @@
 #include "EnemyStateTreeTasks.h"
 #include "MeleeEnemy.h"
 #include "StateTreeExecutionContext.h"
+#include "Engine/Engine.h"
+
+namespace
+{
+	static void PrintEnemyTaskDebug(const FString& Msg, const FColor Color)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 1.5f, Color, Msg);
+		}
+		UE_LOG(LogTemp, Log, TEXT("[EnemyTask] %s"), *Msg);
+	}
+}
 
 ////////////////////////////////////////////////////////////////////
 // MeleeDash
@@ -23,6 +36,7 @@ EStateTreeRunStatus FEnemyMeleeDashTask::EnterState(FStateTreeExecutionContext& 
 
 	if (!IsValid(Data.MeleeEnemy))
 	{
+		PrintEnemyTaskDebug(TEXT("MeleeDash: FAIL (MeleeEnemy is null - Context binding missing?)"), FColor::Red);
 		return EStateTreeRunStatus::Failed;
 	}
 
@@ -37,10 +51,10 @@ EStateTreeRunStatus FEnemyMeleeDashTask::EnterState(FStateTreeExecutionContext& 
 		Dir = Data.MeleeEnemy->GetActorForwardVector();
 	}
 
-	// 使用传入的冲量参数覆盖 DataAsset 的默认值（Task 节点可细化每个实例的突进）
 	const FVector Impulse = Dir.GetSafeNormal() * Data.Impulse;
 	Data.MeleeEnemy->LaunchCharacter(Impulse, true, false);
 
+	PrintEnemyTaskDebug(FString::Printf(TEXT("MeleeDash: ENTER (impulse=%.0f)"), Data.Impulse), FColor::Orange);
 	return EStateTreeRunStatus::Running;
 }
 
@@ -48,7 +62,12 @@ EStateTreeRunStatus FEnemyMeleeDashTask::Tick(FStateTreeExecutionContext& Contex
 {
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	Data.ElapsedTime += DeltaTime;
-	return (Data.ElapsedTime >= Data.Duration) ? EStateTreeRunStatus::Succeeded : EStateTreeRunStatus::Running;
+	if (Data.ElapsedTime >= Data.Duration)
+	{
+		PrintEnemyTaskDebug(TEXT("MeleeDash: DONE"), FColor::Orange);
+		return EStateTreeRunStatus::Succeeded;
+	}
+	return EStateTreeRunStatus::Running;
 }
 
 #if WITH_EDITOR
@@ -74,11 +93,13 @@ EStateTreeRunStatus FEnemyMeleeSwingTask::EnterState(FStateTreeExecutionContext&
 
 	if (!IsValid(Data.MeleeEnemy))
 	{
+		PrintEnemyTaskDebug(TEXT("MeleeSwing: FAIL (MeleeEnemy is null)"), FColor::Red);
 		return EStateTreeRunStatus::Failed;
 	}
 
 	Data.MeleeEnemy->SetMeleeHitboxActive(true);
 	Data.bHitboxActive = true;
+	PrintEnemyTaskDebug(TEXT("MeleeSwing: ENTER (hitbox ON)"), FColor::Yellow);
 	return EStateTreeRunStatus::Running;
 }
 
@@ -92,14 +113,19 @@ EStateTreeRunStatus FEnemyMeleeSwingTask::Tick(FStateTreeExecutionContext& Conte
 
 	Data.ElapsedTime += DeltaTime;
 
-	// Hitbox 激活窗口结束后关闭
 	if (Data.bHitboxActive && Data.ElapsedTime >= Data.HitboxActiveWindow)
 	{
 		Data.MeleeEnemy->SetMeleeHitboxActive(false);
 		Data.bHitboxActive = false;
+		PrintEnemyTaskDebug(TEXT("MeleeSwing: hitbox OFF"), FColor::Yellow);
 	}
 
-	return (Data.ElapsedTime >= Data.TotalDuration) ? EStateTreeRunStatus::Succeeded : EStateTreeRunStatus::Running;
+	if (Data.ElapsedTime >= Data.TotalDuration)
+	{
+		PrintEnemyTaskDebug(TEXT("MeleeSwing: DONE"), FColor::Yellow);
+		return EStateTreeRunStatus::Succeeded;
+	}
+	return EStateTreeRunStatus::Running;
 }
 
 void FEnemyMeleeSwingTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& /*Transition*/) const

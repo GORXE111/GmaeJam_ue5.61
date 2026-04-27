@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UEGameJamCharacter.h"
 #include "ShooterWeaponHolder.h"
+#include "Character/HeroCharacter.h"
 #include "ShooterCharacter.generated.h"
 
 class AShooterWeapon;
@@ -35,7 +36,7 @@ enum class EShooterCharacterAction : uint8
  *  Manages health and death
  */
 UCLASS(abstract)
-class UEGAMEJAM_API AShooterCharacter : public AUEGameJamCharacter, public IShooterWeaponHolder
+class UEGAMEJAM_API AShooterCharacter : public AHeroCharacter, public IShooterWeaponHolder
 {
 	GENERATED_BODY()
 	

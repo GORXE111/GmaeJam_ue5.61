@@ -97,6 +97,9 @@ struct FEnemyMoveToTargetTaskInstanceData
 
 	UPROPERTY()
 	float TimeSinceRepath = 0.f;
+
+	UPROPERTY()
+	float TimeSinceDebug = 0.f;
 };
 
 USTRUCT(meta=(DisplayName="Enemy: Move To Target", Category="Enemy"))

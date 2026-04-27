@@ -4,7 +4,9 @@
 
 #include "EnemyAIController.h"
 #include "EnemyCharacter.h"
+#include "EnemyDataAsset.h"
 #include "Components/StateTreeAIComponent.h"
+#include "StateTree.h"
 #include "BrainComponent.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "EngineUtils.h"
@@ -14,6 +16,12 @@
 AEnemyAIController::AEnemyAIController()
 {
 	StateTreeAI = CreateDefaultSubobject<UStateTreeAIComponent>(TEXT("StateTreeAI"));
+
+	// 推迟到 OnPossess 里等 Pawn 的 DataAsset 可访问后再设 ST 资产 + 手动启动。
+	// 跳过 InitializeComponent 的 ValidateStateTreeReference 自检（避免尚未 Possess 时
+	// 报 "The State Tree asset is not set" Error 日志）。
+	StateTreeAI->SetStartLogicAutomatically(false);
+	StateTreeAI->bWantsInitializeComponent = false;
 }
 
 void AEnemyAIController::OnPossess(APawn* InPawn)
@@ -23,6 +31,16 @@ void AEnemyAIController::OnPossess(APawn* InPawn)
 	if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(InPawn))
 	{
 		Enemy->OnEnemyDeath.AddDynamic(this, &AEnemyAIController::HandleOwnerDeath);
+
+		// 从 Pawn 的 DataAsset 取 StateTree 资产并启动
+		if (UEnemyDataAsset* Data = Enemy->EnemyData)
+		{
+			if (Data->StateTreeAsset && StateTreeAI)
+			{
+				StateTreeAI->SetStateTree(Data->StateTreeAsset);
+				StateTreeAI->StartLogic();
+			}
+		}
 	}
 
 	RefreshPlayer();
