@@ -83,6 +83,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide", meta = (ClampMin = 0))
 	float SlideDeceleration = 500.0f;
 
+	/** 下坡滑铲时每秒增加的速度，数值越大下坡加速越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide", meta = (ClampMin = 0))
+	float SlideSlopeAcceleration = 900.0f;
+
+	/** 滑铲可达到的最大水平速度，数值越大下坡时最高速度越高 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide", meta = (ClampMin = 0, Units = "cm/s"))
+	float SlideMaxSpeed = 1800.0f;
+
+	/** 滑行期间循环播放的第一人称蒙太奇，用于表现滑行动作 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide")
+	TObjectPtr<UAnimMontage> SlideMontage;
+
 	/** 蹬墙跳检测距离，表示胶囊体外额外向周围探测的距离 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = 0, Units = "cm"))
 	float WallJumpTraceDistance = 40.0f;
@@ -272,6 +284,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoSlide();
 
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoSlideEnd();
+
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsCharacterActionActive() const;
 
@@ -310,6 +325,9 @@ protected:
 
 	/** 判断滑铲后的胶囊体是否可以安全恢复到站立高度 */
 	bool CanRestoreSlideCapsule() const;
+
+	/** 停止当前滑行蒙太奇，避免误停其他蒙太奇 */
+	void StopSlideMontage();
 
 	/** 每帧更新滑铲速度与结束条件 */
 	void UpdateSlide(float DeltaSeconds);

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/Character/GsPlayer.h"
+#include "Animation/AnimInstance.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -103,12 +104,20 @@ bool AGsPlayer::StartSlide()
 	PlayerCapsuleComponent->SetCapsuleHalfHeight(TargetCapsuleHalfHeight, true);
 	AddActorWorldOffset(FVector(0.0f, 0.0f, -WorldHalfHeightDelta), false);
 
-	PlayerMovementComponent->MaxWalkSpeed = SlideSpeed;
+	PlayerMovementComponent->MaxWalkSpeed = FMath::Max(SlideSpeed, SlideMaxSpeed);
 	CurrentSlideSpeed = SlideSpeed;
 
 	FVector NewVelocity = SlideDirection * CurrentSlideSpeed;
 	NewVelocity.Z = PlayerMovementComponent->Velocity.Z;
 	PlayerMovementComponent->Velocity = NewVelocity;
+
+	if (SlideMontage && FirstPersonMesh)
+	{
+		if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
+		{
+			AnimInstance->Montage_Play(SlideMontage);
+		}
+	}
 
 	return true;
 }
@@ -170,6 +179,7 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 
 	if (!PlayerMovementComponent || !PlayerCapsuleComponent)
 	{
+		StopSlideMontage();
 		CurrentSlideSpeed = 0.0f;
 		FinishCharacterAction();
 		return true;
@@ -192,6 +202,7 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 
 	PlayerMovementComponent->MaxWalkSpeed = OriginalSlideMaxWalkSpeed;
 	CurrentSlideSpeed = 0.0f;
+	StopSlideMontage();
 	FinishCharacterAction();
 
 	return true;
@@ -233,6 +244,19 @@ bool AGsPlayer::CanRestoreSlideCapsule() const
 		ResponseParams);
 }
 
+void AGsPlayer::StopSlideMontage()
+{
+	if (!SlideMontage || !FirstPersonMesh)
+	{
+		return;
+	}
+
+	if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
+	{
+		AnimInstance->Montage_Stop(0.15f, SlideMontage);
+	}
+}
+
 void AGsPlayer::UpdateSlide(float DeltaSeconds)
 {
 	if (!IsSliding())
@@ -253,9 +277,35 @@ void AGsPlayer::UpdateSlide(float DeltaSeconds)
 		return;
 	}
 
-	CurrentSlideSpeed = FMath::Max(0.0f, CurrentSlideSpeed - (SlideDeceleration * DeltaSeconds));
+	bool bShouldTryStopForLowSpeed = true;
+	const FFindFloorResult& CurrentFloor = PlayerMovementComponent->CurrentFloor;
+	if (CurrentFloor.IsWalkableFloor())
+	{
+		FVector FloorNormal = CurrentFloor.HitResult.ImpactNormal.IsNearlyZero()
+			? CurrentFloor.HitResult.Normal
+			: CurrentFloor.HitResult.ImpactNormal;
+		FloorNormal = FloorNormal.GetSafeNormal();
 
-	if (CurrentSlideSpeed < SlideStopSpeed)
+		FVector DownhillDirection = FVector::VectorPlaneProject(FVector::DownVector, FloorNormal);
+		DownhillDirection = DownhillDirection.GetSafeNormal();
+		const float DownhillAlignment = FVector::DotProduct(SlideDirection, DownhillDirection);
+
+		if (DownhillAlignment > KINDA_SMALL_NUMBER && SlideSlopeAcceleration > 0.0f)
+		{
+			CurrentSlideSpeed = FMath::Min(SlideMaxSpeed, CurrentSlideSpeed + (SlideSlopeAcceleration * DownhillAlignment * DeltaSeconds));
+			bShouldTryStopForLowSpeed = false;
+		}
+		else
+		{
+			CurrentSlideSpeed = FMath::Max(0.0f, CurrentSlideSpeed - (SlideDeceleration * DeltaSeconds));
+		}
+	}
+	else
+	{
+		CurrentSlideSpeed = FMath::Max(0.0f, CurrentSlideSpeed - (SlideDeceleration * DeltaSeconds));
+	}
+
+	if (bShouldTryStopForLowSpeed && CurrentSlideSpeed < SlideStopSpeed)
 	{
 		if (StopSlide(false))
 		{

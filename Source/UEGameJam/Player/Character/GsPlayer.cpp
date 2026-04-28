@@ -157,6 +157,7 @@ void AGsPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		if (SlideAction)
 		{
 			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Started, this, &AGsPlayer::DoSlide);
+			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Completed, this, &AGsPlayer::DoSlideEnd);
 		}
 	}
 	else
@@ -233,13 +234,20 @@ void AGsPlayer::DoSlide()
 		return;
 	}
 
-	if (IsSliding())
+	if (!IsSliding())
 	{
-		StopSlide(false);
+		StartSlide();
+	}
+}
+
+void AGsPlayer::DoSlideEnd()
+{
+	if (bIsDead || !IsSliding())
+	{
 		return;
 	}
 
-	StartSlide();
+	StopSlide(false);
 }
 
 bool AGsPlayer::IsCharacterActionActive() const
