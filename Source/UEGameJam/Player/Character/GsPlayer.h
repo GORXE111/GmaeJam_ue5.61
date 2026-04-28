@@ -7,6 +7,7 @@
 #include "GsPlayer.generated.h"
 
 class UAnimMontage;
+class UBoxComponent;
 class UCameraComponent;
 class UDamageType;
 class UInputAction;
@@ -39,6 +40,10 @@ class UEGAMEJAM_API AGsPlayer : public ACharacter
 	/** 第一人称相机 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FirstPersonCameraComponent;
+
+	/** 近战造成伤害时使用的盒形检测范围，可在蓝图中调整位置和大小 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UBoxComponent> MeleeDamageCollision;
 
 protected:
 
@@ -125,18 +130,6 @@ protected:
 	/** 近战命中判定延迟，用于把 Box Sweep 对齐到挥砍时机 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee", meta = (ClampMin = 0, Units = "s"))
 	float MeleeHitDelay = 0.08f;
-
-	/** 近战判定从视角前方多远开始，避免判定盒从相机内部起始 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee", meta = (ClampMin = 0, Units = "cm"))
-	float MeleeTraceStartOffset = 40.0f;
-
-	/** 近战判定向前推进的距离，数值越大攻击范围越远 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee", meta = (ClampMin = 0, Units = "cm"))
-	float MeleeTraceDistance = 140.0f;
-
-	/** 近战 Box Sweep 的半尺寸，控制攻击覆盖范围 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee", meta = (ClampMin = 0, Units = "cm"))
-	FVector MeleeTraceHalfExtent = FVector(30.0f, 50.0f, 50.0f);
 
 	/** 玩家默认视野角，静止或低速移动时相机会平滑回到这个 FOV */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
@@ -293,6 +286,7 @@ public:
 
 	USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+	UBoxComponent* GetMeleeDamageCollision() const { return MeleeDamageCollision; }
 
 protected:
 
@@ -341,7 +335,7 @@ protected:
 	/** 开始一次近战攻击 */
 	bool StartMeleeAttack();
 
-	/** 执行近战 Box Sweep 并对命中目标造成伤害 */
+	/** 读取近战伤害盒当前重叠对象并对命中目标造成伤害 */
 	void PerformMeleeHit();
 
 	/** 角色死亡时的统一处理 */

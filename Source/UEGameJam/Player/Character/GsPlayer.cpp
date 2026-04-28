@@ -2,6 +2,7 @@
 
 #include "Player/Character/GsPlayer.h"
 #include "Camera/CameraComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
@@ -31,6 +32,17 @@ AGsPlayer::AGsPlayer()
 	FirstPersonCameraComponent->bEnableFirstPersonScale = true;
 	FirstPersonCameraComponent->FirstPersonFieldOfView = 70.0f;
 	FirstPersonCameraComponent->FirstPersonScale = 0.6f;
+
+	MeleeDamageCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeDamageCollision"));
+	MeleeDamageCollision->SetupAttachment(GetRootComponent());
+	MeleeDamageCollision->SetRelativeLocation(FVector(140.0f, 0.0f, 0.0f));
+	MeleeDamageCollision->InitBoxExtent(FVector(70.0f, 50.0f, 50.0f));
+	MeleeDamageCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	MeleeDamageCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
+	MeleeDamageCollision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	MeleeDamageCollision->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
+	MeleeDamageCollision->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
+	MeleeDamageCollision->SetGenerateOverlapEvents(true);
 
 	GetMesh()->SetOwnerNoSee(true);
 	GetMesh()->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
