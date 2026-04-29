@@ -14,11 +14,8 @@
 bool FEnemyHasPlayerTargetCondition::TestCondition(FStateTreeExecutionContext& Context) const
 {
 	const FInstanceDataType& Data = Context.GetInstanceData(*this);
-	if (!IsValid(Data.Controller))
-	{
-		return false;
-	}
-	return IsValid(Data.Controller->GetCachedPlayer());
+	const bool bRaw = IsValid(Data.Controller) && IsValid(Data.Controller->GetCachedPlayer());
+	return Data.bInvert ? !bRaw : bRaw;
 }
 
 #if WITH_EDITOR
@@ -36,10 +33,12 @@ bool FEnemyPlayerInRadiusCondition::TestCondition(FStateTreeExecutionContext& Co
 	const FInstanceDataType& Data = Context.GetInstanceData(*this);
 	if (!IsValid(Data.Enemy) || !IsValid(Data.Target))
 	{
-		return false;
+		// Target 无效时：原始判定为 false（不在半径内）；Invert 后就是 true
+		return Data.bInvert;
 	}
 	const float DistSq = FVector::DistSquared(Data.Enemy->GetActorLocation(), Data.Target->GetActorLocation());
-	return DistSq <= (Data.Radius * Data.Radius);
+	const bool bRaw = DistSq <= (Data.Radius * Data.Radius);
+	return Data.bInvert ? !bRaw : bRaw;
 }
 
 #if WITH_EDITOR
@@ -57,10 +56,11 @@ bool FEnemyPlayerInRangeCondition::TestCondition(FStateTreeExecutionContext& Con
 	const FInstanceDataType& Data = Context.GetInstanceData(*this);
 	if (!IsValid(Data.Enemy) || !IsValid(Data.Target))
 	{
-		return false;
+		return Data.bInvert;
 	}
 	const float DistSq = FVector::DistSquared(Data.Enemy->GetActorLocation(), Data.Target->GetActorLocation());
-	return DistSq >= (Data.MinRange * Data.MinRange) && DistSq <= (Data.MaxRange * Data.MaxRange);
+	const bool bRaw = DistSq >= (Data.MinRange * Data.MinRange) && DistSq <= (Data.MaxRange * Data.MaxRange);
+	return Data.bInvert ? !bRaw : bRaw;
 }
 
 #if WITH_EDITOR
@@ -78,13 +78,13 @@ bool FEnemyHasLineOfSightCondition::TestCondition(FStateTreeExecutionContext& Co
 	const FInstanceDataType& Data = Context.GetInstanceData(*this);
 	if (!IsValid(Data.Enemy) || !IsValid(Data.Target))
 	{
-		return false;
+		return Data.bInvert;
 	}
 
 	UWorld* World = Data.Enemy->GetWorld();
 	if (!World)
 	{
-		return false;
+		return Data.bInvert;
 	}
 
 	const FVector Start = Data.Enemy->GetActorLocation() + Data.EyeOffset;
@@ -96,7 +96,8 @@ bool FEnemyHasLineOfSightCondition::TestCondition(FStateTreeExecutionContext& Co
 
 	FHitResult Hit;
 	const bool bBlocked = World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
-	return !bBlocked;
+	const bool bRaw = !bBlocked;
+	return Data.bInvert ? !bRaw : bRaw;
 }
 
 #if WITH_EDITOR
@@ -112,7 +113,8 @@ FText FEnemyHasLineOfSightCondition::GetDescription(const FGuid&, FStateTreeData
 bool FEnemyIsDeadCondition::TestCondition(FStateTreeExecutionContext& Context) const
 {
 	const FInstanceDataType& Data = Context.GetInstanceData(*this);
-	return IsValid(Data.Enemy) && Data.Enemy->IsDead();
+	const bool bRaw = IsValid(Data.Enemy) && Data.Enemy->IsDead();
+	return Data.bInvert ? !bRaw : bRaw;
 }
 
 #if WITH_EDITOR

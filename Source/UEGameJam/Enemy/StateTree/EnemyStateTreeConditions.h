@@ -27,6 +27,10 @@ struct FEnemyHasPlayerTargetConditionInstanceData
 
 	UPROPERTY(EditAnywhere, Category="Context")
 	TObjectPtr<AEnemyAIController> Controller;
+
+	/** 勾选后对判定结果取反（UE 5.6 StateTree 编辑器无原生 Invert 选项，由本参数代替） */
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	bool bInvert = false;
 };
 
 USTRUCT(meta=(DisplayName="Enemy: Has Player Target", Category="Enemy"))
@@ -60,6 +64,10 @@ struct FEnemyPlayerInRadiusConditionInstanceData
 
 	UPROPERTY(EditAnywhere, Category="Parameter", meta=(ClampMin=0))
 	float Radius = 1500.f;
+
+	/** 勾选后对判定结果取反 */
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	bool bInvert = false;
 };
 
 USTRUCT(meta=(DisplayName="Enemy: Player In Radius", Category="Enemy"))
@@ -96,6 +104,10 @@ struct FEnemyPlayerInRangeConditionInstanceData
 
 	UPROPERTY(EditAnywhere, Category="Parameter", meta=(ClampMin=0))
 	float MaxRange = 1500.f;
+
+	/** 勾选后对判定结果取反 */
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	bool bInvert = false;
 };
 
 USTRUCT(meta=(DisplayName="Enemy: Player In Range", Category="Enemy"))
@@ -130,6 +142,10 @@ struct FEnemyHasLineOfSightConditionInstanceData
 	/** 眼部偏移（局部坐标，一般 Z 取 60-80） */
 	UPROPERTY(EditAnywhere, Category="Parameter")
 	FVector EyeOffset = FVector(0.f, 0.f, 60.f);
+
+	/** 勾选后对判定结果取反 */
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	bool bInvert = false;
 };
 
 USTRUCT(meta=(DisplayName="Enemy: Has Line of Sight", Category="Enemy"))
@@ -157,6 +173,10 @@ struct FEnemyIsDeadConditionInstanceData
 
 	UPROPERTY(EditAnywhere, Category="Context")
 	TObjectPtr<AEnemyCharacter> Enemy;
+
+	/** 勾选后对判定结果取反（等效"Is Alive"） */
+	UPROPERTY(EditAnywhere, Category="Parameter")
+	bool bInvert = false;
 };
 
 USTRUCT(meta=(DisplayName="Enemy: Is Dead", Category="Enemy"))
