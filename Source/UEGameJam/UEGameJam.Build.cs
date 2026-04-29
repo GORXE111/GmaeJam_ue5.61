@@ -15,6 +15,7 @@ public class UEGameJam : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
+			"NavigationSystem",
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
@@ -35,6 +36,14 @@ public class UEGameJam : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] {
 			"UEGameJam",
+			"UEGameJam/Enemy",
+			"UEGameJam/Enemy/Core",
+			"UEGameJam/Enemy/Components",
+			"UEGameJam/Enemy/Subsystem",
+			"UEGameJam/Enemy/Projectile",
+			"UEGameJam/Enemy/StateTree",
+			"UEGameJam/Enemy/Enemies",
+			"UEGameJam/Enemy/Debug",
 			"UEGameJam/Realm",
 			"UEGameJam/Variant_Horror",
 			"UEGameJam/Variant_Horror/UI",

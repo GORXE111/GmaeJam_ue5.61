@@ -23,3 +23,18 @@
 ## 注意事项
 
 - 完成工作后无需你测试
+
+## Enemy 模块
+
+敌人逻辑集中在 `Source/UEGameJam/Enemy/` 下，与 `Variant_Shooter/` 完全解耦（不相互 include）。基类继承 UE 原生 `ACharacter`、`AAIController`，行为用 StateTree + C++ 驱动。
+
+子目录职责：
+- `Core/`：`AEnemyCharacter`、`AEnemyAIController`、类型与威胁视觉接口
+- `Subsystem/`：`UEnemyManagerSubsystem`（胜利判断查此处拿计数/订阅死亡）、`UEnemyThreatBroker`（UI 威胁指示器的数据源）
+- `Components/`：血量 / 死亡守卫 / 核心暴露检测
+- `Projectile/`：手枪与机枪共用的投射物
+- `Enemies/`：四种敌人的具体子类（手枪 / 机枪 / 近战里世界 / 重装）
+- `StateTree/`：C++ Task 与 Condition，StateTree 资产留给 Editor 搭建
+- `Debug/`：`LogEnemyModule` 日志分类 + `r.Enemy.DebugThreat` CVar
+
+架构计划文件（含端到端验证步骤与每个敌人的 StateTree 搭法）：`C:\Users\yixiao.liu\.claude\plans\iridescent-rolling-frost.md`。
