@@ -121,7 +121,9 @@ void AGsPlayer::Tick(float DeltaSeconds)
 		return;
 	}
 
-	const float TargetFOV = GetVelocity().Size2D() >= RunFOVSpeedThreshold ? RunningCameraFOV : DefaultCameraFOV;
+	const float TargetFOV = IsDashing()
+		? DashCameraFOV
+		: (GetVelocity().Size2D() >= RunFOVSpeedThreshold ? RunningCameraFOV : DefaultCameraFOV);
 	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, CameraFOVInterpSpeed);
 	FirstPersonCameraComponent->SetFieldOfView(NewFOV);
 }

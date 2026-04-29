@@ -168,6 +168,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
 	float RunningCameraFOV = 120.0f;
 
+	/** 冲刺期间目标视野角，用于增强爆发速度感 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
+	float DashCameraFOV = 130.0f;
+
 	/** 水平移动速度达到这个值时视为跑起来，单位为厘米每秒 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 0, Units = "cm/s"))
 	float RunFOVSpeedThreshold = 450.0f;
