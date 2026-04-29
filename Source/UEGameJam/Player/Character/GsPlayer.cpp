@@ -61,10 +61,23 @@ void AGsPlayer::BeginPlay()
 
 	CurrentHP = MaxHP;
 	bIsDead = false;
+	bHasDashedSinceLanded = false;
+	PreDashVelocity = FVector::ZeroVector;
+	PreDashMovementMode = MOVE_Walking;
+	PreDashCustomMovementMode = 0;
+	DashStartLocation = FVector::ZeroVector;
+	DashTargetLocation = FVector::ZeroVector;
+	CurrentDashElapsedTime = 0.0f;
 	LastSafeLocation = GetActorLocation();
 	LastSafeRotation = GetActorRotation();
 	bHasSafeLocation = true;
 	LastFallRecoveryTime = -SafeLandingMinInterval;
+	LastDashTime = -DashCooldown;
+
+	if (UWorld* World = GetWorld())
+	{
+		LastDashTime = World->GetTimeSeconds() - DashCooldown;
+	}
 
 	if (FirstPersonCameraComponent)
 	{
@@ -84,6 +97,7 @@ void AGsPlayer::Tick(float DeltaSeconds)
 	}
 
 	UpdateSlide(DeltaSeconds);
+	UpdateDash(DeltaSeconds);
 	UpdateWallJumpContact();
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
@@ -115,6 +129,14 @@ void AGsPlayer::Tick(float DeltaSeconds)
 void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
 	StopSlide(true);
+	if (IsDashing())
+	{
+		AbortDash();
+	}
+	else
+	{
+		ClearDashState();
+	}
 
 	if (UWorld* World = GetWorld())
 	{
@@ -159,6 +181,11 @@ void AGsPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Started, this, &AGsPlayer::DoSlide);
 			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Completed, this, &AGsPlayer::DoSlideEnd);
 		}
+
+		if (DashAction)
+		{
+			EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AGsPlayer::DoDash);
+		}
 	}
 	else
 	{
@@ -170,6 +197,7 @@ void AGsPlayer::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
+	bHasDashedSinceLanded = false;
 	ClearWallJumpContact();
 	bHasWallJumpedSinceLanded = false;
 	LastWallJumpNormal = FVector::ZeroVector;
@@ -250,6 +278,16 @@ void AGsPlayer::DoSlideEnd()
 	StopSlide(false);
 }
 
+void AGsPlayer::DoDash()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	StartDash();
+}
+
 bool AGsPlayer::IsCharacterActionActive() const
 {
 	return CurrentAction != EUEGameJamPlayerAction::None;
@@ -258,6 +296,11 @@ bool AGsPlayer::IsCharacterActionActive() const
 bool AGsPlayer::IsSliding() const
 {
 	return CurrentAction == EUEGameJamPlayerAction::Slide;
+}
+
+bool AGsPlayer::IsDashing() const
+{
+	return CurrentAction == EUEGameJamPlayerAction::Dash;
 }
 
 float AGsPlayer::GetLifePercent() const
@@ -306,6 +349,51 @@ void AGsPlayer::FinishCharacterAction()
 	CurrentAction = EUEGameJamPlayerAction::None;
 }
 
+void AGsPlayer::FinishDash()
+{
+	if (!IsDashing())
+	{
+		ClearDashState();
+		return;
+	}
+
+	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
+	{
+		PlayerMovementComponent->SetMovementMode(PreDashMovementMode, PreDashCustomMovementMode);
+
+		FVector PreDashHorizontalVelocity = PreDashVelocity;
+		PreDashHorizontalVelocity.Z = 0.0f;
+
+		const float ForwardSpeed = FMath::Max(0.0f, FVector::DotProduct(PreDashHorizontalVelocity, DashDirection));
+		FVector RestoredVelocity = DashDirection * ForwardSpeed;
+		RestoredVelocity.Z = PreDashVelocity.Z;
+
+		PlayerMovementComponent->Velocity = RestoredVelocity;
+	}
+
+	ClearDashState();
+	FinishCharacterAction();
+}
+
+void AGsPlayer::AbortDash()
+{
+	if (!IsDashing())
+	{
+		ClearDashState();
+		return;
+	}
+
+	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
+	{
+		PlayerMovementComponent->SetMovementMode(PreDashMovementMode, PreDashCustomMovementMode);
+		PlayerMovementComponent->StopMovementImmediately();
+		PlayerMovementComponent->StopActiveMovement();
+	}
+
+	ClearDashState();
+	FinishCharacterAction();
+}
+
 void AGsPlayer::UpdateSafeLandingTransform()
 {
 	UWorld* World = GetWorld();
@@ -339,7 +427,16 @@ void AGsPlayer::RecoverFromDeepFall()
 	}
 
 	StopSlide(true);
-	FinishCharacterAction();
+	if (IsDashing())
+	{
+		AbortDash();
+	}
+	else
+	{
+		ClearDashState();
+		FinishCharacterAction();
+	}
+	bHasDashedSinceLanded = false;
 	ClearWallJumpContact();
 	bHasWallJumpedSinceLanded = false;
 	LastWallJumpNormal = FVector::ZeroVector;
@@ -373,7 +470,16 @@ void AGsPlayer::Die()
 	bIsDead = true;
 
 	StopSlide(true);
-	FinishCharacterAction();
+	if (IsDashing())
+	{
+		AbortDash();
+	}
+	else
+	{
+		ClearDashState();
+		FinishCharacterAction();
+	}
+	bHasDashedSinceLanded = false;
 	ClearWallJumpContact();
 	bHasWallJumpedSinceLanded = false;
 	LastWallJumpNormal = FVector::ZeroVector;

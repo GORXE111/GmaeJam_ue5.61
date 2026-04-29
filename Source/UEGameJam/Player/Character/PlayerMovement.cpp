@@ -9,7 +9,7 @@
 
 void AGsPlayer::DoMove(float Right, float Forward)
 {
-	if (bIsDead || IsSliding() || !GetController())
+	if (bIsDead || !GetController())
 	{
 		return;
 	}
@@ -18,6 +18,11 @@ void AGsPlayer::DoMove(float Right, float Forward)
 	const FVector2D MoveVector(Right, Forward);
 	CachedMoveInput = MoveVector.SizeSquared() > FMath::Square(SlideInputDeadZone) ? MoveVector : FVector2D::ZeroVector;
 
+	if (IsSliding() || IsDashing())
+	{
+		return;
+	}
+
 	AddMovementInput(GetActorRightVector(), Right);
 	AddMovementInput(GetActorForwardVector(), Forward);
 }
@@ -25,6 +30,11 @@ void AGsPlayer::DoMove(float Right, float Forward)
 void AGsPlayer::DoJumpStart()
 {
 	if (bIsDead)
+	{
+		return;
+	}
+
+	if (IsDashing())
 	{
 		return;
 	}
@@ -117,6 +127,70 @@ bool AGsPlayer::StartSlide()
 		{
 			AnimInstance->Montage_Play(SlideMontage);
 		}
+	}
+
+	return true;
+}
+
+bool AGsPlayer::StartDash()
+{
+	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
+	if (bIsDead || !PlayerMovementComponent)
+	{
+		return false;
+	}
+
+	if (IsCharacterActionActive())
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	const float CurrentWorldTime = World ? World->GetTimeSeconds() : 0.0f;
+	if ((CurrentWorldTime - LastDashTime) < DashCooldown)
+	{
+		return false;
+	}
+
+	const bool bIsAirborne = PlayerMovementComponent->IsFalling();
+	if (bIsAirborne && bHasDashedSinceLanded)
+	{
+		return false;
+	}
+
+	FVector ForwardDirection = FVector::VectorPlaneProject(GetActorForwardVector(), FVector::UpVector);
+	if (!ForwardDirection.Normalize())
+	{
+		return false;
+	}
+
+	if (!TryStartCharacterAction(EUEGameJamPlayerAction::Dash, -1.0f))
+	{
+		return false;
+	}
+
+	DashDirection = ForwardDirection;
+	LastDashTime = CurrentWorldTime;
+	PreDashVelocity = PlayerMovementComponent->Velocity;
+	PreDashMovementMode = PlayerMovementComponent->MovementMode;
+	PreDashCustomMovementMode = PlayerMovementComponent->CustomMovementMode;
+	DashStartLocation = GetActorLocation();
+	DashTargetLocation = DashStartLocation + (DashDirection * (DashSpeed * DashDuration));
+	DashTargetLocation.Z = DashStartLocation.Z;
+	CurrentDashElapsedTime = 0.0f;
+
+	if (bIsAirborne)
+	{
+		bHasDashedSinceLanded = true;
+	}
+
+	PlayerMovementComponent->StopMovementImmediately();
+	PlayerMovementComponent->StopActiveMovement();
+	PlayerMovementComponent->DisableMovement();
+
+	if (DashDuration <= KINDA_SMALL_NUMBER)
+	{
+		FinishDash();
 	}
 
 	return true;
@@ -318,6 +392,49 @@ void AGsPlayer::UpdateSlide(float DeltaSeconds)
 	FVector NewVelocity = SlideDirection * CurrentSlideSpeed;
 	NewVelocity.Z = PlayerMovementComponent->Velocity.Z;
 	PlayerMovementComponent->Velocity = NewVelocity;
+}
+
+void AGsPlayer::UpdateDash(float DeltaSeconds)
+{
+	if (!IsDashing())
+	{
+		return;
+	}
+
+	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
+	if (!PlayerMovementComponent)
+	{
+		AbortDash();
+		return;
+	}
+
+	CurrentDashElapsedTime += DeltaSeconds;
+	const float DashAlpha = DashDuration > KINDA_SMALL_NUMBER
+		? FMath::Clamp(CurrentDashElapsedTime / DashDuration, 0.0f, 1.0f)
+		: 1.0f;
+	const bool bReachedDestination = DashAlpha >= 1.0f;
+
+	FVector DesiredLocation = FMath::Lerp(DashStartLocation, DashTargetLocation, DashAlpha);
+	DesiredLocation.Z = DashStartLocation.Z;
+
+	FHitResult SweepHit;
+	SetActorLocation(DesiredLocation, true, &SweepHit, ETeleportType::None);
+
+	if (SweepHit.bBlockingHit || bReachedDestination)
+	{
+		FinishDash();
+	}
+}
+
+void AGsPlayer::ClearDashState()
+{
+	DashDirection = FVector::ForwardVector;
+	PreDashVelocity = FVector::ZeroVector;
+	PreDashMovementMode = MOVE_Walking;
+	PreDashCustomMovementMode = 0;
+	DashStartLocation = FVector::ZeroVector;
+	DashTargetLocation = FVector::ZeroVector;
+	CurrentDashElapsedTime = 0.0f;
 }
 
 void AGsPlayer::UpdateWallJumpContact()

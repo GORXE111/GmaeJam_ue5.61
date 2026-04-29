@@ -22,6 +22,7 @@ enum class EUEGameJamPlayerAction : uint8
 {
 	None,
 	MeleeAttack,
+	Dash,
 	Slide
 };
 
@@ -66,6 +67,22 @@ protected:
 	/** 滑铲输入动作 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> SlideAction;
+
+	/** 冲刺输入动作 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> DashAction;
+
+	/** 冲刺速度，用于计算 0.3 秒冲刺可到达的总位移距离 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, Units = "cm/s"))
+	float DashSpeed = 2000.0f;
+
+	/** 冲刺持续时间，数值越大前冲位移段持续越久 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, Units = "s"))
+	float DashDuration = 0.3f;
+
+	/** 两次冲刺之间的冷却时间，数值越大连续冲刺间隔越久 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, Units = "s"))
+	float DashCooldown = 0.75f;
 
 	/** 滑铲时使用的水平移动速度，数值越大向前滑得越快 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide", meta = (ClampMin = 0, Units = "cm/s"))
@@ -211,6 +228,33 @@ protected:
 	/** 当前滑铲沿锁定方向的速度 */
 	float CurrentSlideSpeed = 0.0f;
 
+	/** 进入冲刺时锁定的方向 */
+	FVector DashDirection = FVector::ForwardVector;
+
+	/** 最近一次成功冲刺发生的时间 */
+	float LastDashTime = 0.0f;
+
+	/** 进入冲刺前缓存的完整速度，用于冲刺结束时提取前向惯性和竖直速度 */
+	FVector PreDashVelocity = FVector::ZeroVector;
+
+	/** 进入冲刺前缓存的移动模式，用于冲刺结束后恢复移动组件 */
+	EMovementMode PreDashMovementMode = MOVE_Walking;
+
+	/** 进入冲刺前缓存的自定义移动模式 */
+	uint8 PreDashCustomMovementMode = 0;
+
+	/** 冲刺开始时的位置 */
+	FVector DashStartLocation = FVector::ZeroVector;
+
+	/** 冲刺目标位置 */
+	FVector DashTargetLocation = FVector::ZeroVector;
+
+	/** 当前冲刺已推进的时间 */
+	float CurrentDashElapsedTime = 0.0f;
+
+	/** 自上次落地以来是否已经完成过一次空中冲刺 */
+	bool bHasDashedSinceLanded = false;
+
 	/** 最近一次空中贴墙时缓存的墙面法线 */
 	FVector LastWallContactNormal = FVector::ZeroVector;
 
@@ -287,11 +331,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoSlideEnd();
 
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoDash();
+
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsCharacterActionActive() const;
 
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsSliding() const;
+
+	UFUNCTION(BlueprintPure, Category="Action")
+	bool IsDashing() const;
 
 	UFUNCTION(BlueprintPure, Category="Health")
 	float GetLifePercent() const;
@@ -314,8 +364,17 @@ protected:
 	/** 结束当前角色动作 */
 	void FinishCharacterAction();
 
+	/** 正常结束冲刺并恢复移动状态，只保留进入冲刺前的前向惯性和竖直速度 */
+	void FinishDash();
+
+	/** 强制中断冲刺并恢复移动组件，不恢复进入冲刺前速度 */
+	void AbortDash();
+
 	/** 尝试开始滑铲 */
 	bool StartSlide();
+
+	/** 尝试开始冲刺 */
+	bool StartDash();
 
 	/** 根据最近一次移动输入计算滑铲方向 */
 	bool TryGetSlideInputDirection(FVector& OutSlideDirection) const;
@@ -331,6 +390,12 @@ protected:
 
 	/** 每帧更新滑铲速度与结束条件 */
 	void UpdateSlide(float DeltaSeconds);
+
+	/** 每帧推进冲刺位移并处理碰撞与结束条件 */
+	void UpdateDash(float DeltaSeconds);
+
+	/** 清理冲刺运行时状态缓存 */
+	void ClearDashState();
 
 	/** 缓存空中最近一次贴墙信息 */
 	void UpdateWallJumpContact();
