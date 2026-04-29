@@ -228,6 +228,8 @@ EStateTreeRunStatus FEnemyMoveToTargetTask::Tick(FStateTreeExecutionContext& Con
 
 void FEnemyMoveToTargetTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& /*Transition*/) const
 {
+	PrintEnemyCommonDebug("Exit Move To Target", FColor::Red);
+	
 	FInstanceDataType& Data = Context.GetInstanceData(*this);
 	if (IsValid(Data.Controller))
 	{
@@ -437,7 +439,7 @@ EStateTreeRunStatus FEnemySetMovementSpeedTask::EnterState(FStateTreeExecutionCo
 		Move->MaxWalkSpeed = Data.Speed;
 	}
 	PrintEnemyCommonDebug(FString::Printf(TEXT("SetMovementSpeed: %.0f"), Data.Speed), FColor::Silver);
-	return EStateTreeRunStatus::Succeeded;
+	return EStateTreeRunStatus::Running;
 }
 
 #if WITH_EDITOR
