@@ -13,6 +13,7 @@ class UDamageType;
 class UInputAction;
 class UInputComponent;
 class USkeletalMeshComponent;
+class AGsSkillBall;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUEGameJamPlayerDamagedDelegate, float, LifePercent);
@@ -22,6 +23,7 @@ enum class EUEGameJamPlayerAction : uint8
 {
 	None,
 	MeleeAttack,
+	Skill,
 	Dash,
 	Slide
 };
@@ -63,6 +65,10 @@ protected:
 	/** 近战攻击输入动作，沿用 FireAction 名称以兼容输入资源 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> FireAction;
+	
+	/** 技能输入动作，用于释放技能球 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> SkillAction;
 
 	/** 滑铲输入动作 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
@@ -159,6 +165,26 @@ protected:
 	/** 近战命中判定延迟，用于把 Box Sweep 对齐到挥砍时机 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee", meta = (ClampMin = 0, Units = "s"))
 	float MeleeHitDelay = 0.08f;
+
+	/** 技能释放时生成的技能球类，可在蓝图中替换具体表现 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AGsSkillBall> SkillProjectileClass;
+
+	/** 旧版技能发射 Socket 配置，当前极简发射逻辑不再使用 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (AllowPrivateAccess = "true"))
+	FName SkillSpawnSocketName = NAME_None;
+
+	/** 旧版技能发射前推距离，当前极简发射逻辑不再使用 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (ClampMin = 0, Units = "cm"))
+	float SkillSpawnForwardOffset = 100.0f;
+
+	/** 技能瞄准检测的最远距离，数值越大越容易命中远处准星中心位置 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (ClampMin = 0, Units = "cm"))
+	float SkillAimTraceDistance = 10000.0f;
+
+	/** 技能释放占用动作状态的时长，数值越大越久不能触发其他互斥动作 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (ClampMin = 0, Units = "s"))
+	float SkillActionDuration = 0.15f;
 
 	/** 玩家默认视野角，静止或低速移动时相机会平滑回到这个 FOV */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
@@ -330,6 +356,9 @@ public:
 	void DoStartFiring();
 
 	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoSkill();
+
+	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoSlide();
 
 	UFUNCTION(BlueprintCallable, Category="Input")
@@ -421,6 +450,15 @@ protected:
 
 	/** 开始一次近战攻击 */
 	bool StartMeleeAttack();
+
+	/** 获取技能发射使用的真实玩家视角位置与朝向 */
+	bool GetSkillViewPoint(FVector& OutViewLocation, FRotator& OutViewRotation) const;
+
+	/** 获取技能沿屏幕中心瞄准时的目标点 */
+	FVector GetSkillAimTarget(const FVector& ViewLocation, const FVector& ViewDirection) const;
+
+	/** 释放一次技能球 */
+	bool StartSkillCast();
 
 	/** 读取近战伤害盒当前重叠对象并对命中目标造成伤害 */
 	void PerformMeleeHit();

@@ -178,6 +178,11 @@ void AGsPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &AGsPlayer::DoStartFiring);
 		}
 
+		if (SkillAction)
+		{
+			EnhancedInputComponent->BindAction(SkillAction, ETriggerEvent::Started, this, &AGsPlayer::DoSkill);
+		}
+
 		if (SlideAction)
 		{
 			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Started, this, &AGsPlayer::DoSlide);
