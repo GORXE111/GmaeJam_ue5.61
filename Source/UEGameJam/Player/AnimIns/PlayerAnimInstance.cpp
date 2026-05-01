@@ -9,6 +9,7 @@
 void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
+	(void)DeltaSeconds;
 
 	if (const APawn* OwningPawn = TryGetPawnOwner())
 	{
@@ -18,13 +19,26 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		const ACharacter* OwningCharacter = Cast<ACharacter>(OwningPawn);
 		const UCharacterMovementComponent* MovementComponent = OwningCharacter ? OwningCharacter->GetCharacterMovement() : nullptr;
 		const AGsPlayer* PlayerCharacter = Cast<AGsPlayer>(OwningPawn);
+		const bool bIsOnGround = MovementComponent && MovementComponent->IsMovingOnGround();
 		const bool bIsInFallingMovementMode = MovementComponent && MovementComponent->IsFalling();
 		const bool bIsExcludedAirAction = PlayerCharacter && (PlayerCharacter->IsWallRunning() || PlayerCharacter->IsDashing());
 
+		if (bWasOnGroundLastFrame && bIsInFallingMovementMode && PawnVelocity.Z > 0.0f && !bIsExcludedAirAction)
+		{
+			bIsJumpStarting = true;
+		}
+		else if (!bIsInFallingMovementMode || PawnVelocity.Z <= 0.0f || bIsExcludedAirAction)
+		{
+			bIsJumpStarting = false;
+		}
+
 		bIsFalling = bIsInFallingMovementMode && PawnVelocity.Z < 0.0f && !bIsExcludedAirAction;
+		bWasOnGroundLastFrame = bIsOnGround;
 		return;
 	}
 
 	bIsMoving = false;
 	bIsFalling = false;
+	bIsJumpStarting = false;
+	bWasOnGroundLastFrame = false;
 }

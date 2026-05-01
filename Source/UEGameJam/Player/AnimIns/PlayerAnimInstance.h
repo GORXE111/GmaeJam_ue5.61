@@ -25,4 +25,12 @@ public:
 	/** 是否处于空中下落状态，用于切换到掉落动作，墙跑和冲刺时不会触发 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
 	bool bIsFalling = false;
+
+	/** 是否处于地面起跳上升阶段，用于切换到起跳动作 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
+	bool bIsJumpStarting = false;
+
+private:
+
+	bool bWasOnGroundLastFrame = false;
 };
