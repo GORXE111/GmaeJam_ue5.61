@@ -27,11 +27,12 @@ AGsPlayer::AGsPlayer()
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCameraComponent->SetupAttachment(FirstPersonMesh, FName("head"));
 	FirstPersonCameraComponent->SetRelativeLocationAndRotation(FVector(-2.8f, 5.89f, 0.0f), FRotator(0.0f, 90.0f, -90.0f));
-	FirstPersonCameraComponent->bUsePawnControlRotation = true;
+	FirstPersonCameraComponent->bUsePawnControlRotation = false;
 	FirstPersonCameraComponent->bEnableFirstPersonFieldOfView = true;
 	FirstPersonCameraComponent->bEnableFirstPersonScale = true;
 	FirstPersonCameraComponent->FirstPersonFieldOfView = 70.0f;
 	FirstPersonCameraComponent->FirstPersonScale = 0.6f;
+	DefaultFirstPersonCameraRelativeTransform = FirstPersonCameraComponent->GetRelativeTransform();
 
 	MeleeDamageCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeDamageCollision"));
 	MeleeDamageCollision->SetupAttachment(GetRootComponent());
@@ -82,6 +83,10 @@ void AGsPlayer::BeginPlay()
 
 	if (FirstPersonCameraComponent)
 	{
+		DefaultFirstPersonCameraRelativeTransform = FirstPersonCameraComponent->GetRelativeTransform();
+		CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
+		TargetWallRunCameraRoll = 0.0f;
+		CurrentWallRunCameraRoll = 0.0f;
 		FirstPersonCameraComponent->SetFieldOfView(DefaultCameraFOV);
 	}
 
@@ -94,6 +99,11 @@ void AGsPlayer::Tick(float DeltaSeconds)
 
 	if (bIsDead)
 	{
+		if (FirstPersonCameraComponent)
+		{
+			UpdateWallRunCameraTilt(DeltaSeconds);
+			UpdateFirstPersonCameraRotation(DeltaSeconds);
+		}
 		return;
 	}
 
@@ -128,6 +138,8 @@ void AGsPlayer::Tick(float DeltaSeconds)
 		: (GetVelocity().Size2D() >= RunFOVSpeedThreshold ? RunningCameraFOV : DefaultCameraFOV);
 	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, CameraFOVInterpSpeed);
 	FirstPersonCameraComponent->SetFieldOfView(NewFOV);
+	UpdateWallRunCameraTilt(DeltaSeconds);
+	UpdateFirstPersonCameraRotation(DeltaSeconds);
 }
 
 void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
@@ -265,6 +277,45 @@ void AGsPlayer::DoAim(float Yaw, float Pitch)
 
 	AddControllerYawInput(Yaw);
 	AddControllerPitchInput(Pitch);
+}
+
+void AGsPlayer::UpdateFirstPersonCameraRotation(float DeltaSeconds)
+{
+	if (!FirstPersonCameraComponent || !FirstPersonMesh)
+	{
+		return;
+	}
+
+	const FName CameraAttachSocketName = FirstPersonCameraComponent->GetAttachSocketName();
+	const FTransform HeadSocketWorldTransform = CameraAttachSocketName != NAME_None
+		? FirstPersonMesh->GetSocketTransform(CameraAttachSocketName, RTS_World)
+		: FirstPersonMesh->GetComponentTransform();
+	const FRotator RawCameraWorldRotation =
+		(DefaultFirstPersonCameraRelativeTransform * HeadSocketWorldTransform).GetRotation().Rotator();
+
+	FRotator DesiredCameraWorldRotation = RawCameraWorldRotation;
+	if (AController* PlayerController = GetController())
+	{
+		const FRotator ControlRotation = PlayerController->GetControlRotation().GetNormalized();
+		const FRotator RawHeadRotationOffset = (RawCameraWorldRotation - ControlRotation).GetNormalized();
+		const float BlendAlpha = FMath::Clamp(HeadCameraRotationBlendAlpha, 0.0f, 1.0f);
+		const FRotator TargetHeadRotationOffset(
+			RawHeadRotationOffset.Pitch * BlendAlpha,
+			RawHeadRotationOffset.Yaw * BlendAlpha,
+			RawHeadRotationOffset.Roll * BlendAlpha);
+
+		CurrentHeadCameraRotationOffset = HeadCameraRotationInterpSpeed > 0.0f
+			? FMath::RInterpTo(CurrentHeadCameraRotationOffset, TargetHeadRotationOffset, DeltaSeconds, HeadCameraRotationInterpSpeed).GetNormalized()
+			: TargetHeadRotationOffset.GetNormalized();
+		DesiredCameraWorldRotation = (ControlRotation + CurrentHeadCameraRotationOffset).GetNormalized();
+	}
+	else
+	{
+		CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
+	}
+
+	DesiredCameraWorldRotation.Roll = FRotator::NormalizeAxis(DesiredCameraWorldRotation.Roll + CurrentWallRunCameraRoll);
+	FirstPersonCameraComponent->SetWorldRotation(DesiredCameraWorldRotation.GetNormalized());
 }
 
 void AGsPlayer::DoStartFiring()

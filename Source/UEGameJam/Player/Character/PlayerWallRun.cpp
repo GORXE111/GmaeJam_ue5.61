@@ -229,6 +229,7 @@ bool AGsPlayer::StartWallRun(const FVector& WallNormal)
 	WallRunSurfaceNormal = HorizontalWallNormal;
 	bHasTriggeredWallRunThisJump = true;
 	bCanCheckWallRun = false;
+	SetWallRunCameraTiltTarget(bIsRightWall ? -WallRunCameraTiltAngle : WallRunCameraTiltAngle);
 
 	PlayerMovementComponent->GravityScale = 0.0f;
 	PlayerMovementComponent->AirControl = 0.0f;
@@ -285,6 +286,8 @@ void AGsPlayer::UpdateWallRun(float DeltaSeconds)
 
 void AGsPlayer::StopWallRun()
 {
+	SetWallRunCameraTiltTarget(0.0f);
+
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
 	if (PlayerMovementComponent)
 	{
@@ -348,4 +351,17 @@ bool AGsPlayer::TryWallRunJump()
 	ResetWallRunDetection();
 	StartWallRunDetectionDelay();
 	return true;
+}
+
+void AGsPlayer::UpdateWallRunCameraTilt(float DeltaSeconds)
+{
+	const float DesiredRoll = FMath::Clamp(TargetWallRunCameraRoll, -WallRunCameraTiltAngle, WallRunCameraTiltAngle);
+	CurrentWallRunCameraRoll = WallRunCameraTiltInterpSpeed > 0.0f
+		? FMath::FInterpTo(CurrentWallRunCameraRoll, DesiredRoll, DeltaSeconds, WallRunCameraTiltInterpSpeed)
+		: DesiredRoll;
+}
+
+void AGsPlayer::SetWallRunCameraTiltTarget(float InTargetRoll)
+{
+	TargetWallRunCameraRoll = FMath::Clamp(InTargetRoll, -WallRunCameraTiltAngle, WallRunCameraTiltAngle);
 }

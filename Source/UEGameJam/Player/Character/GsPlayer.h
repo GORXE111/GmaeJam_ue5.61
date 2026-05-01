@@ -179,6 +179,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 0))
 	float CameraFOVInterpSpeed = 8.0f;
 
+	/** 头部原始旋转偏移的保留比例，数值越大保留的方向轻晃越明显 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 0, ClampMax = 1))
+	float HeadCameraRotationBlendAlpha = 0.25f;
+
+	/** 头部原始旋转偏移平滑过渡的速度，数值越大轻晃跟随越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 0))
+	float HeadCameraRotationInterpSpeed = 12.0f;
+
 	/** 起跳后延迟多久才开始检测墙跑触发，单位为秒 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "s"))
 	float WallRunCheckDelay = 0.2f;
@@ -206,6 +214,14 @@ protected:
 	/** 墙跑跳出时向上的发射力度，数值越大离墙后跳得越高 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "cm/s"))
 	float WallRunJumpVerticalStrength = 650.0f;
+
+	/** 墙跑时第一人称视角倾斜的角度，右墙为负左墙为正 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, ClampMax = 89, Units = "deg"))
+	float WallRunCameraTiltAngle = 15.0f;
+
+	/** 墙跑视角倾斜切换的速度，数值越大进入和回正越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0))
+	float WallRunCameraTiltInterpSpeed = 8.0f;
 
 	/** 相对最近一次安全落地点，向下掉落超过这个高度后会回传，单位为厘米 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fall Recovery", meta = (ClampMin = 0, Units = "cm"))
@@ -327,6 +343,18 @@ protected:
 
 	/** 进入墙跑前缓存的自定义移动模式 */
 	uint8 PreWallRunCustomMovementMode = 0;
+
+	/** 第一人称相机默认的相对变换，用于还原头部 Socket 的原始跟随朝向 */
+	FTransform DefaultFirstPersonCameraRelativeTransform = FTransform::Identity;
+
+	/** 当前平滑后的头部旋转偏移 */
+	FRotator CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
+
+	/** 当前墙跑视角目标 Roll，右墙为负左墙为正，非墙跑为 0 */
+	float TargetWallRunCameraRoll = 0.0f;
+
+	/** 当前墙跑视角已经平滑到的 Roll 值 */
+	float CurrentWallRunCameraRoll = 0.0f;
 
 public:
 
@@ -475,6 +503,15 @@ protected:
 
 	/** 尝试从墙跑状态跳出并重新开启墙跑检测延迟 */
 	bool TryWallRunJump();
+
+	/** 每帧平滑更新墙跑时的相机倾斜 */
+	void UpdateWallRunCameraTilt(float DeltaSeconds);
+
+	/** 每帧更新第一人称相机朝向，合成控制器瞄准、头部轻晃与墙跑倾斜 */
+	void UpdateFirstPersonCameraRotation(float DeltaSeconds);
+
+	/** 设置墙跑相机倾斜的目标 Roll */
+	void SetWallRunCameraTiltTarget(float InTargetRoll);
 
 	/** 清理冲刺运行时状态缓存 */
 	void ClearDashState();
