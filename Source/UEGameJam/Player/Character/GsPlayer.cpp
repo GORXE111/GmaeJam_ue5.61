@@ -73,6 +73,7 @@ void AGsPlayer::BeginPlay()
 	bHasSafeLocation = true;
 	LastFallRecoveryTime = -SafeLandingMinInterval;
 	LastDashTime = -DashCooldown;
+	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -98,7 +99,7 @@ void AGsPlayer::Tick(float DeltaSeconds)
 
 	UpdateSlide(DeltaSeconds);
 	UpdateDash(DeltaSeconds);
-	UpdateWallJumpContact();
+	UpdateWallRunDetection();
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
 	if (PlayerMovementComponent
@@ -139,6 +140,7 @@ void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
 	{
 		ClearDashState();
 	}
+	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
 	{
@@ -205,9 +207,7 @@ void AGsPlayer::Landed(const FHitResult& Hit)
 	Super::Landed(Hit);
 
 	bHasDashedSinceLanded = false;
-	ClearWallJumpContact();
-	bHasWallJumpedSinceLanded = false;
-	LastWallJumpNormal = FVector::ZeroVector;
+	ResetWallRunDetection();
 	UpdateSafeLandingTransform();
 }
 
@@ -444,9 +444,7 @@ void AGsPlayer::RecoverFromDeepFall()
 		FinishCharacterAction();
 	}
 	bHasDashedSinceLanded = false;
-	ClearWallJumpContact();
-	bHasWallJumpedSinceLanded = false;
-	LastWallJumpNormal = FVector::ZeroVector;
+	ResetWallRunDetection();
 
 	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
 	{
@@ -487,9 +485,7 @@ void AGsPlayer::Die()
 		FinishCharacterAction();
 	}
 	bHasDashedSinceLanded = false;
-	ClearWallJumpContact();
-	bHasWallJumpedSinceLanded = false;
-	LastWallJumpNormal = FVector::ZeroVector;
+	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
 	{

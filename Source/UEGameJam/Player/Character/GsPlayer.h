@@ -118,34 +118,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide")
 	TObjectPtr<UAnimMontage> SlideMontage;
 
-	/** 蹬墙跳检测距离，表示胶囊体外额外向周围探测的距离 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = 0, Units = "cm"))
-	float WallJumpTraceDistance = 40.0f;
-
-	/** 蹬墙跳的水平弹离速度，数值越大离墙越快 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = 0, Units = "cm/s"))
-	float WallJumpHorizontalStrength = 850.0f;
-
-	/** 蹬墙跳的垂直起跳速度，数值越大跳得越高 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = 0, Units = "cm/s"))
-	float WallJumpVerticalStrength = 650.0f;
-
-	/** 允许蹬墙跳的墙面法线最大垂直分量，用于过滤地面和天花板 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = 0, ClampMax = 1))
-	float WallJumpMaxWallNormalZ = 0.25f;
-
-	/** 选择蹬墙跳墙面时参考的最小朝墙角度，数值越低越容易缓存贴墙状态 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = -1, ClampMax = 1))
-	float WallJumpMinApproachDot = 0.05f;
-
-	/** 空中水平速度达到这个值时，才会用朝墙角度来优先选择墙面 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = 0, Units = "cm/s"))
-	float WallJumpMinAirHorizontalSpeed = 100.0f;
-
-	/** 判定为同一面墙的法线相似度，数值越高越容易允许相邻墙面连续蹬跳 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Jump", meta = (ClampMin = -1, ClampMax = 1))
-	float WallJumpSameWallDot = 0.85f;
-
 	/** 近战攻击时播放的动画蒙太奇 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee")
 	TObjectPtr<UAnimMontage> MeleeAttackMontage;
@@ -206,6 +178,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera", meta = (ClampMin = 0))
 	float CameraFOVInterpSpeed = 8.0f;
 
+	/** 起跳后延迟多久才开始检测墙跑触发，单位为秒 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "s"))
+	float WallRunCheckDelay = 0.2f;
+
+	/** 左右两侧墙跑检测的射线距离，数值越大越容易探测到侧边墙面 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "cm"))
+	float WallRunSideTraceDistance = 80.0f;
+
+	/** 相机朝向与墙面法线允许的最大点积绝对值，越小越要求沿墙观察 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, ClampMax = 1))
+	float WallRunMaxCameraWallNormalDot = 0.6f;
+
+	/** 角色前进方向与相机朝向至少需要多接近才允许触发墙跑 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = -1, ClampMax = 1))
+	float WallRunMinForwardCameraDot = 0.8f;
+
 	/** 相对最近一次安全落地点，向下掉落超过这个高度后会回传，单位为厘米 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fall Recovery", meta = (ClampMin = 0, Units = "cm"))
 	float FallResetDepth = 2000.0f;
@@ -242,6 +230,9 @@ protected:
 
 	/** 死亡后销毁计时器 */
 	FTimerHandle DeferredDestroyTimer;
+
+	/** 起跳后延迟开启墙跑检测的计时器 */
+	FTimerHandle WallRunDetectionDelayTimer;
 
 	/** 滑铲前的胶囊体半高 */
 	float OriginalSlideCapsuleHalfHeight = 0.0f;
@@ -285,18 +276,6 @@ protected:
 	/** 自上次落地以来是否已经完成过一次空中冲刺 */
 	bool bHasDashedSinceLanded = false;
 
-	/** 最近一次空中贴墙时缓存的墙面法线 */
-	FVector LastWallContactNormal = FVector::ZeroVector;
-
-	/** 是否缓存了最近一次可用的贴墙信息 */
-	bool bHasRecentWallContact = false;
-
-	/** 最近一次成功蹬墙跳使用的墙面法线 */
-	FVector LastWallJumpNormal = FVector::ZeroVector;
-
-	/** 自上次落地以来是否已经完成过一次蹬墙跳 */
-	bool bHasWallJumpedSinceLanded = false;
-
 	/** 最近一次安全落地点位置 */
 	FVector LastSafeLocation = FVector::ZeroVector;
 
@@ -311,6 +290,12 @@ protected:
 
 	/** 最近一次深坑回传发生的时间 */
 	float LastFallRecoveryTime = -1.0f;
+
+	/** 是否已进入起跳后的墙跑检测阶段 */
+	bool bCanCheckWallRun = false;
+
+	/** 本次腾空是否已经成功触发过墙跑提示 */
+	bool bHasTriggeredWallRunThisJump = false;
 
 public:
 
@@ -427,20 +412,26 @@ protected:
 	/** 每帧推进冲刺位移并处理碰撞与结束条件 */
 	void UpdateDash(float DeltaSeconds);
 
+	/** 起跳后开启墙跑检测延迟 */
+	void StartWallRunDetectionDelay();
+
+	/** 延迟结束后正式允许墙跑检测 */
+	void EnableWallRunDetection();
+
+	/** 重置本次腾空的墙跑检测状态 */
+	void ResetWallRunDetection();
+
+	/** 每帧检测是否满足墙跑触发条件 */
+	void UpdateWallRunDetection();
+
+	/** 从角色左右两侧寻找可用于墙跑的墙面 */
+	bool TryFindWallRunSurface(FHitResult& OutWallHit, FVector& OutWallNormal) const;
+
+	/** 判断当前状态是否满足墙跑触发条件 */
+	bool CanTriggerWallRun(const FVector& WallNormal) const;
+
 	/** 清理冲刺运行时状态缓存 */
 	void ClearDashState();
-
-	/** 缓存空中最近一次贴墙信息 */
-	void UpdateWallJumpContact();
-
-	/** 清空贴墙缓存 */
-	void ClearWallJumpContact();
-
-	/** 空中时尝试执行蹬墙跳 */
-	bool TryWallJump();
-
-	/** 查找可用于蹬墙跳的墙面法线 */
-	bool FindWallJumpSurface(FVector& OutWallNormal) const;
 
 	/** 更新最近一次安全落地点 */
 	void UpdateSafeLandingTransform();

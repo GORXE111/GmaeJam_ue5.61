@@ -34,6 +34,9 @@ void AGsPlayer::DoJumpStart()
 		return;
 	}
 
+	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
+	const bool bWasMovingOnGround = PlayerMovementComponent && PlayerMovementComponent->IsMovingOnGround();
+
 	if (IsDashing())
 	{
 		return;
@@ -47,15 +50,13 @@ void AGsPlayer::DoJumpStart()
 		}
 	}
 
-	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
-	{
-		if (PlayerMovementComponent->IsFalling() && TryWallJump())
-		{
-			return;
-		}
-	}
-
 	Jump();
+
+	if (bWasMovingOnGround)
+	{
+		ResetWallRunDetection();
+		StartWallRunDetectionDelay();
+	}
 }
 
 void AGsPlayer::DoJumpEnd()
