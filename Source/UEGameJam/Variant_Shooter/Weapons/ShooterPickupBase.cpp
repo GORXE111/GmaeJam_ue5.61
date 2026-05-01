@@ -62,7 +62,6 @@ void AShooterPickupBase::SetPickupEnabled(bool bEnabled, AShooterCharacter* Pick
 
 void AShooterPickupBase::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 2, FColor::White, ">>>>");
 	if (AShooterCharacter* ShooterCharacter = Cast<AShooterCharacter>(OtherActor))
 	{
 		ShooterCharacter->RegisterPickupCandidate(this);
