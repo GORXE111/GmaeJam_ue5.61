@@ -128,11 +128,22 @@ bool AGsPlayer::StartSlide()
 	NewVelocity.Z = PlayerMovementComponent->Velocity.Z;
 	PlayerMovementComponent->Velocity = NewVelocity;
 
-	if (SlideMontage && FirstPersonMesh)
+	if (SlideMontage)
 	{
-		if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
+		if (FirstPersonMesh)
 		{
-			AnimInstance->Montage_Play(SlideMontage);
+			if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
+			{
+				AnimInstance->Montage_Play(SlideMontage);
+			}
+		}
+
+		if (USkeletalMeshComponent* WorldMesh = GetMesh())
+		{
+			if (UAnimInstance* AnimInstance = WorldMesh->GetAnimInstance())
+			{
+				AnimInstance->Montage_Play(SlideMontage);
+			}
 		}
 	}
 
@@ -327,14 +338,25 @@ bool AGsPlayer::CanRestoreSlideCapsule() const
 
 void AGsPlayer::StopSlideMontage()
 {
-	if (!SlideMontage || !FirstPersonMesh)
+	if (!SlideMontage)
 	{
 		return;
 	}
 
-	if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
+	if (FirstPersonMesh)
 	{
-		AnimInstance->Montage_Stop(0.15f, SlideMontage);
+		if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
+		{
+			AnimInstance->Montage_Stop(0.15f, SlideMontage);
+		}
+	}
+
+	if (USkeletalMeshComponent* WorldMesh = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = WorldMesh->GetAnimInstance())
+		{
+			AnimInstance->Montage_Stop(0.15f, SlideMontage);
+		}
 	}
 }
 

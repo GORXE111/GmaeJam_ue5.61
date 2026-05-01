@@ -21,4 +21,8 @@ public:
 	/** 是否处于移动状态，用于状态机切换到移动 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
 	bool bIsMoving = false;
+
+	/** 是否处于空中下落状态，用于切换到掉落动作，墙跑和冲刺时不会触发 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
+	bool bIsFalling = false;
 };
