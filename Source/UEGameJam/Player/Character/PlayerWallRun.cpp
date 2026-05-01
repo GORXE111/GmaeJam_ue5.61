@@ -312,3 +312,40 @@ void AGsPlayer::StopWallRun()
 		FinishCharacterAction();
 	}
 }
+
+bool AGsPlayer::TryWallRunJump()
+{
+	if (!IsWallRunning()
+		|| bIsDead
+		|| (WallRunJumpHorizontalStrength <= 0.0f && WallRunJumpVerticalStrength <= 0.0f))
+	{
+		return false;
+	}
+
+	FVector ForwardDirection = GetActorForwardVector().GetSafeNormal2D();
+	const FVector WallJumpOutDirection = WallRunSurfaceNormal.GetSafeNormal2D();
+	if (WallJumpOutDirection.IsNearlyZero())
+	{
+		return false;
+	}
+
+	FVector HorizontalJumpDirection = WallJumpOutDirection;
+	if (!ForwardDirection.IsNearlyZero())
+	{
+		HorizontalJumpDirection = ForwardDirection + WallJumpOutDirection;
+		if (!HorizontalJumpDirection.Normalize())
+		{
+			HorizontalJumpDirection = WallJumpOutDirection;
+		}
+	}
+
+	const FVector LaunchVelocity =
+		(HorizontalJumpDirection * WallRunJumpHorizontalStrength)
+		+ (FVector::UpVector * WallRunJumpVerticalStrength);
+
+	StopWallRun();
+	LaunchCharacter(LaunchVelocity, true, true);
+	ResetWallRunDetection();
+	StartWallRunDetectionDelay();
+	return true;
+}

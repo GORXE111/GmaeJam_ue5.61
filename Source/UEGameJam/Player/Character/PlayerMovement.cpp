@@ -44,6 +44,7 @@ void AGsPlayer::DoJumpStart()
 
 	if (IsWallRunning())
 	{
+		TryWallRunJump();
 		return;
 	}
 

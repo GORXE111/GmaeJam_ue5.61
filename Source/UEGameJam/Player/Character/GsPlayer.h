@@ -199,6 +199,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "cm/s"))
 	float WallRunSpeed = 900.0f;
 
+	/** 墙跑跳出时水平发射力度，数值越大斜向离墙跳得越远 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "cm/s"))
+	float WallRunJumpHorizontalStrength = 850.0f;
+
+	/** 墙跑跳出时向上的发射力度，数值越大离墙后跳得越高 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "cm/s"))
+	float WallRunJumpVerticalStrength = 650.0f;
+
 	/** 相对最近一次安全落地点，向下掉落超过这个高度后会回传，单位为厘米 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fall Recovery", meta = (ClampMin = 0, Units = "cm"))
 	float FallResetDepth = 2000.0f;
@@ -464,6 +472,9 @@ protected:
 
 	/** 结束当前墙跑并恢复普通空中状态 */
 	void StopWallRun();
+
+	/** 尝试从墙跑状态跳出并重新开启墙跑检测延迟 */
+	bool TryWallRunJump();
 
 	/** 清理冲刺运行时状态缓存 */
 	void ClearDashState();
