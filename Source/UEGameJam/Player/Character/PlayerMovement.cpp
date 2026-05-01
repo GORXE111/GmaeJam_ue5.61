@@ -18,7 +18,7 @@ void AGsPlayer::DoMove(float Right, float Forward)
 	const FVector2D MoveVector(Right, Forward);
 	CachedMoveInput = MoveVector.SizeSquared() > FMath::Square(SlideInputDeadZone) ? MoveVector : FVector2D::ZeroVector;
 
-	if (IsSliding() || IsDashing())
+	if (IsSliding() || IsDashing() || IsWallRunning())
 	{
 		return;
 	}
@@ -38,6 +38,11 @@ void AGsPlayer::DoJumpStart()
 	const bool bWasMovingOnGround = PlayerMovementComponent && PlayerMovementComponent->IsMovingOnGround();
 
 	if (IsDashing())
+	{
+		return;
+	}
+
+	if (IsWallRunning())
 	{
 		return;
 	}

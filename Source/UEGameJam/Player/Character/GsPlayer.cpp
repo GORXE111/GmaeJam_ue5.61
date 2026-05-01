@@ -99,6 +99,7 @@ void AGsPlayer::Tick(float DeltaSeconds)
 
 	UpdateSlide(DeltaSeconds);
 	UpdateDash(DeltaSeconds);
+	UpdateWallRun(DeltaSeconds);
 	UpdateWallRunDetection();
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
@@ -135,6 +136,10 @@ void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
 	if (IsDashing())
 	{
 		AbortDash();
+	}
+	if (IsWallRunning())
+	{
+		StopWallRun();
 	}
 	else
 	{
@@ -206,6 +211,11 @@ void AGsPlayer::Landed(const FHitResult& Hit)
 {
 	Super::Landed(Hit);
 
+	if (IsWallRunning())
+	{
+		StopWallRun();
+	}
+
 	bHasDashedSinceLanded = false;
 	ResetWallRunDetection();
 	UpdateSafeLandingTransform();
@@ -264,7 +274,7 @@ void AGsPlayer::DoStartFiring()
 
 void AGsPlayer::DoSlide()
 {
-	if (bIsDead)
+	if (bIsDead || IsWallRunning())
 	{
 		return;
 	}
@@ -287,7 +297,7 @@ void AGsPlayer::DoSlideEnd()
 
 void AGsPlayer::DoDash()
 {
-	if (bIsDead)
+	if (bIsDead || IsWallRunning())
 	{
 		return;
 	}
@@ -308,6 +318,11 @@ bool AGsPlayer::IsSliding() const
 bool AGsPlayer::IsDashing() const
 {
 	return CurrentAction == EUEGameJamPlayerAction::Dash;
+}
+
+bool AGsPlayer::IsWallRunning() const
+{
+	return CurrentAction == EUEGameJamPlayerAction::WallRun;
 }
 
 float AGsPlayer::GetLifePercent() const
@@ -438,6 +453,10 @@ void AGsPlayer::RecoverFromDeepFall()
 	{
 		AbortDash();
 	}
+	if (IsWallRunning())
+	{
+		StopWallRun();
+	}
 	else
 	{
 		ClearDashState();
@@ -478,6 +497,10 @@ void AGsPlayer::Die()
 	if (IsDashing())
 	{
 		AbortDash();
+	}
+	if (IsWallRunning())
+	{
+		StopWallRun();
 	}
 	else
 	{

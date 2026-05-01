@@ -25,7 +25,8 @@ enum class EUEGameJamPlayerAction : uint8
 	MeleeAttack,
 	Skill,
 	Dash,
-	Slide
+	Slide,
+	WallRun
 };
 
 /**
@@ -194,6 +195,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = -1, ClampMax = 1))
 	float WallRunMinForwardCameraDot = 0.8f;
 
+	/** 墙跑时沿墙横向移动的固定速度，数值越大沿墙跑得越快 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Wall Run", meta = (ClampMin = 0, Units = "cm/s"))
+	float WallRunSpeed = 900.0f;
+
 	/** 相对最近一次安全落地点，向下掉落超过这个高度后会回传，单位为厘米 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fall Recovery", meta = (ClampMin = 0, Units = "cm"))
 	float FallResetDepth = 2000.0f;
@@ -297,6 +302,24 @@ protected:
 	/** 本次腾空是否已经成功触发过墙跑提示 */
 	bool bHasTriggeredWallRunThisJump = false;
 
+	/** 墙跑开始时锁定的沿墙移动方向 */
+	FVector WallRunDirection = FVector::ZeroVector;
+
+	/** 当前墙跑依附的墙面法线 */
+	FVector WallRunSurfaceNormal = FVector::ZeroVector;
+
+	/** 进入墙跑前缓存的重力缩放 */
+	float PreWallRunGravityScale = 1.0f;
+
+	/** 进入墙跑前缓存的空中控制强度 */
+	float PreWallRunAirControl = 0.0f;
+
+	/** 进入墙跑前缓存的移动模式 */
+	EMovementMode PreWallRunMovementMode = MOVE_Falling;
+
+	/** 进入墙跑前缓存的自定义移动模式 */
+	uint8 PreWallRunCustomMovementMode = 0;
+
 public:
 
 	/** 生命值变化委托，参数为当前生命百分比 */
@@ -360,6 +383,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsDashing() const;
+
+	UFUNCTION(BlueprintPure, Category="Action")
+	bool IsWallRunning() const;
 
 	UFUNCTION(BlueprintPure, Category="Health")
 	float GetLifePercent() const;
@@ -429,6 +455,15 @@ protected:
 
 	/** 判断当前状态是否满足墙跑触发条件 */
 	bool CanTriggerWallRun(const FVector& WallNormal) const;
+
+	/** 开始一次沿墙横向跑动 */
+	bool StartWallRun(const FVector& WallNormal);
+
+	/** 每帧维持墙跑移动与退出条件 */
+	void UpdateWallRun(float DeltaSeconds);
+
+	/** 结束当前墙跑并恢复普通空中状态 */
+	void StopWallRun();
 
 	/** 清理冲刺运行时状态缓存 */
 	void ClearDashState();
