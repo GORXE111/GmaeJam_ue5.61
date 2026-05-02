@@ -6,6 +6,9 @@
 #include "Blueprint/UserWidget.h"
 #include "PlayerUI.generated.h"
 
+class AGsPlayer;
+class UTextBlock;
+
 /**
  *  纯玩家侧角色 UI 基类
  */
@@ -15,8 +18,21 @@ class UEGAMEJAM_API UPlayerUI : public UUserWidget
 	GENERATED_BODY()
 
 public:
+	void BindPlayer(AGsPlayer* InPlayer);
 
-	/** 允许蓝图根据当前生命百分比更新血条和受伤反馈 */
-	UFUNCTION(BlueprintImplementableEvent, Category="Player", meta = (DisplayName = "Damaged"))
-	void BP_Damaged(float LifePercent);
+protected:
+	virtual void NativeDestruct() override;
+
+	/** 玩家死亡时显示的提示文本 */
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UTextBlock> DieText;
+
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<AGsPlayer> BoundPlayer;
+
+	UFUNCTION()
+	void HandlePlayerDeath();
+
+	void SetDieTextVisible(bool bVisible);
 };

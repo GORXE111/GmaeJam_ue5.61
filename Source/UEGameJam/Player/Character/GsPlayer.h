@@ -17,6 +17,7 @@ class AGsSkillBall;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUEGameJamPlayerDamagedDelegate, float, LifePercent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FUEGameJamPlayerDeathDelegate);
 
 UENUM(BlueprintType)
 enum class EUEGameJamPlayerAction : uint8
@@ -365,6 +366,10 @@ public:
 	/** 生命值变化委托，参数为当前生命百分比 */
 	UPROPERTY(BlueprintAssignable, Category="Health")
 	FUEGameJamPlayerDamagedDelegate OnDamaged;
+
+	/** 玩家死亡委托 */
+	UPROPERTY(BlueprintAssignable, Category="Health")
+	FUEGameJamPlayerDeathDelegate OnDeath;
 
 public:
 
