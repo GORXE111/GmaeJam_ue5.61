@@ -58,8 +58,22 @@ public:
 	/** 设置技能球要飞向的目标点，并允许其开始移动 */
 	void InitializeSkillBall(const FVector& InTargetLocation);
 
+	/** 当前场景里是否还有技能（小球或其生成的大球）尚未结束。蓝图可调用，用于禁用UI按钮等。 */
+	UFUNCTION(BlueprintPure, Category="Skill Ball")
+	static bool IsAnySkillActive();
+
+	/** 注册自己为当前活跃技能。小球 BeginPlay 调用一次，命中后大球 BeginPlay 再次接管覆盖。 */
+	static void SetActiveSkill(AActor* InActor);
+
+	/** 仅当 ActiveSkillPtr 仍指向 InActor 时才清空，避免大球已接管后小球的 EndPlay 把它清掉。 */
+	static void ClearActiveSkillIf(AActor* InActor);
+
 protected:
+	/** 当前活跃的技能 actor（小球或大球，二者接力共享同一个槽） */
+	static TWeakObjectPtr<AActor> ActiveSkillPtr;
+
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** 应用飞行小球的碰撞与视觉大小 */
