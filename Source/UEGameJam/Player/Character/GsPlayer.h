@@ -78,6 +78,10 @@ protected:
 	/** 冲刺输入动作 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> DashAction;
+	
+	/** 钩爪输入动作 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInputAction> FalculaAction;
 
 	/** 冲刺速度，用于计算 0.3 秒冲刺可到达的总位移距离 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, Units = "cm/s"))

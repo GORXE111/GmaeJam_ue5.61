@@ -2,8 +2,9 @@
 
 #include "Player/Skill/GsSkillBall.h"
 
-#include "RealmRevealerComponent.h"
 #include "Components/SphereComponent.h"
+#include "Engine/World.h"
+#include "Player/Skill/GsSkillBigBall.h"
 
 AGsSkillBall::AGsSkillBall()
 {
@@ -15,13 +16,15 @@ AGsSkillBall::AGsSkillBall()
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	CollisionComponent->SetCollisionResponseToAllChannels(ECR_Block);
 	CollisionComponent->CanCharacterStepUpOn = ECanBeCharacterBase::ECB_No;
-	
-	RealmRevealerComponent = CreateDefaultSubobject<URealmRevealerComponent>(TEXT("RealmRevealerComponent"));
+
+	ImpactBallClass = AGsSkillBigBall::StaticClass();
 }
 
 void AGsSkillBall::BeginPlay()
 {
 	Super::BeginPlay();
+
+	ApplyFlightBallSettings();
 
 	if (DestroyDelay > 0.0f)
 	{
@@ -34,6 +37,7 @@ void AGsSkillBall::InitializeSkillBall(const FVector& InTargetLocation)
 	TargetLocation = InTargetLocation;
 	bHasTarget = true;
 	bStopped = false;
+	ApplyFlightBallSettings();
 }
 
 void AGsSkillBall::Tick(float DeltaSeconds)
@@ -49,7 +53,7 @@ void AGsSkillBall::Tick(float DeltaSeconds)
 	const FVector ToTarget = TargetLocation - CurrentLocation;
 	if (ToTarget.SizeSquared() <= KINDA_SMALL_NUMBER)
 	{
-		bStopped = true;
+		HandleImpact(CurrentLocation);
 		return;
 	}
 
@@ -65,6 +69,42 @@ void AGsSkillBall::Tick(float DeltaSeconds)
 
 	if (SweepHit.bBlockingHit || bReachTargetThisFrame)
 	{
-		bStopped = true;
+		const FVector ImpactLocation = SweepHit.bBlockingHit ? SweepHit.ImpactPoint : DesiredLocation;
+		HandleImpact(ImpactLocation);
 	}
+}
+
+void AGsSkillBall::ApplyFlightBallSettings()
+{
+	if (CollisionComponent)
+	{
+		CollisionComponent->SetSphereRadius(FlightCollisionRadius, true);
+	}
+
+	SetActorScale3D(FlightActorScale);
+}
+
+void AGsSkillBall::HandleImpact(const FVector& ImpactLocation)
+{
+	if (bStopped)
+	{
+		return;
+	}
+
+	bStopped = true;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (ImpactBallClass)
+		{
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = GetOwner();
+			SpawnParams.Instigator = GetInstigator();
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+			World->SpawnActor<AGsSkillBigBall>(ImpactBallClass, ImpactLocation, GetActorRotation(), SpawnParams);
+		}
+	}
+
+	Destroy();
 }

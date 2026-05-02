@@ -52,6 +52,8 @@ AGsPlayer::AGsPlayer()
 	PlayerMovementComponent->BrakingDecelerationFalling = 1500.0f;
 	PlayerMovementComponent->AirControl = 0.5f;
 	PlayerMovementComponent->RotationRate = FRotator(0.0f, 600.0f, 0.0f);
+	
+	Tags.Add(FName("Player"));
 
 	MeleeDamageType = UDamageType::StaticClass();
 }
