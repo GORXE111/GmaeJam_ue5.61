@@ -74,8 +74,9 @@ def create_mpc():
 
 def create_master_material(mat_name, mpc, invert_mask):
     """创建一个母材质
-    invert_mask=False -> 里世界（Mask 直连 Opacity Mask）
-    invert_mask=True  -> 表世界（1-Mask 接 Opacity Mask）
+    invert_mask=False -> 里世界（Mask 直连 Opacity Mask；圈内显示，圈外裁剪）
+    invert_mask=True  -> 表世界（1-Mask 接 Opacity Mask；圈外显示，圈内裁剪）
+    母材质保持简单——只做裁剪。空洞填补由球壳材质负责。
     """
     full_path = f"{PACKAGE_PATH}/{mat_name}"
     delete_if_exists(full_path)
@@ -84,7 +85,6 @@ def create_master_material(mat_name, mpc, invert_mask):
     factory = unreal.MaterialFactoryNew()
     mat = asset_tools.create_asset(mat_name, PACKAGE_PATH, unreal.Material, factory)
 
-    # 必须 Masked，否则 Opacity Mask 引脚不可用
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     mat.set_editor_property("two_sided", False)
 
@@ -123,7 +123,6 @@ def create_master_material(mat_name, mpc, invert_mask):
     lib.connect_material_property(roughness,  "",    unreal.MaterialProperty.MP_ROUGHNESS)
     lib.connect_material_property(metallic,   "",    unreal.MaterialProperty.MP_METALLIC)
 
-    # 母材质只做"是否裁剪"。切面发光由额外的球壳叠加材质 M_RealmSphereOverlay 负责。
     if invert_mask:
         # 1 - Mask
         one_minus = lib.create_material_expression(mat, unreal.MaterialExpressionOneMinus, -200, 200)
@@ -141,16 +140,9 @@ def create_master_material(mat_name, mpc, invert_mask):
 # ---------- 球壳叠加材质 ----------
 
 def create_dome_material():
-    """玩家身上挂的那个球。半透明 + 双面 + Unlit + 禁用深度测试。
-
-    视觉分两层叠加：
-      1) 球壳本体：半透明发光（BaseOpacity 基础透明 + Fresnel 边缘亮）—— 沿用旧 Overlay 的质感
-      2) 陷入物体的那部分球面：不透明 + 加强发光 —— 用 PixelDepth > SceneDepth 检测
-
-    Two Sided 必须开：相机位于球内（球挂玩家身上），看到的是球的内表面，不开就剔光了。
-    Disable Depth Test 必须开：陷入物体的球面像素本来会被深度遮挡，关掉测试才能画出来。
-
-    注意：新母材质 M_RealmDome，与旧的 M_RealmSphereOverlay 共存、互不影响。"""
+    """玩家身上的球罩。普通的半透明发光罩——空气中淡淡的，菲涅尔在视线掠射方向加亮。
+    被前面的物体遮挡就遮挡，透明就透明，不做任何"填补空洞"的额外操作。
+    """
     full_path = f"{PACKAGE_PATH}/{DOME_MAT_NAME}"
     delete_if_exists(full_path)
 
@@ -161,90 +153,50 @@ def create_dome_material():
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("two_sided", True)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mat.set_editor_property("disable_depth_test", True)
 
     lib = unreal.MaterialEditingLibrary
 
-    # ---- 参数
-    glow_color = lib.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -1000, -300)
+    # ==================== 参数 ====================
+    glow_color = lib.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -600, -150)
     glow_color.set_editor_property("parameter_name", "GlowColor")
     glow_color.set_editor_property("default_value", unreal.LinearColor(0.4, 0.8, 1.0, 1.0))
 
-    base_op = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1000, -150)
+    base_op = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -600, 0)
     base_op.set_editor_property("parameter_name", "BaseOpacity")
     base_op.set_editor_property("default_value", 0.08)
 
-    fresnel_int = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1000, -50)
+    fresnel_int = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -600, 100)
     fresnel_int.set_editor_property("parameter_name", "FresnelIntensity")
     fresnel_int.set_editor_property("default_value", 1.5)
 
-    fresnel_op_w = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1000, 50)
+    fresnel_op_w = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -600, 200)
     fresnel_op_w.set_editor_property("parameter_name", "FresnelOpacityWeight")
     fresnel_op_w.set_editor_property("default_value", 0.3)
 
-    soft_edge = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1000, 150)
-    soft_edge.set_editor_property("parameter_name", "SoftEdge")
-    soft_edge.set_editor_property("default_value", 5.0)  # cm
+    # ==================== Fresnel：边缘弱发光 ====================
+    fresnel = lib.create_material_expression(mat, unreal.MaterialExpressionFresnel, -400, 50)
 
-    inside_int = lib.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -1000, 250)
-    inside_int.set_editor_property("parameter_name", "InsideIntensity")
-    inside_int.set_editor_property("default_value", 6.0)
-
-    # ---- Fresnel：球壳本体的边缘弱发光
-    fresnel = lib.create_material_expression(mat, unreal.MaterialExpressionFresnel, -700, -100)
-
-    # ---- 穹面遮罩：inside = saturate( (PixelDepth - SceneDepth) / SoftEdge )
-    #   PixelDepth > SceneDepth → 球壳被物体挡住 → 陷入物体内部 → 显示为不透明
-    #   PixelDepth ≤ SceneDepth → 球壳在物体前面（暴露空气）→ 退化为半透明球壳
-    scene_depth = lib.create_material_expression(mat, unreal.MaterialExpressionSceneDepth, -700, 100)
-    pixel_depth = lib.create_material_expression(mat, unreal.MaterialExpressionPixelDepth, -700, 200)
-
-    depth_diff = lib.create_material_expression(mat, unreal.MaterialExpressionSubtract, -500, 150)
-    lib.connect_material_expressions(pixel_depth, "", depth_diff, "A")
-    lib.connect_material_expressions(scene_depth, "", depth_diff, "B")
-
-    depth_norm = lib.create_material_expression(mat, unreal.MaterialExpressionDivide, -350, 150)
-    lib.connect_material_expressions(depth_diff, "", depth_norm, "A")
-    lib.connect_material_expressions(soft_edge,  "", depth_norm, "B")
-
-    inside_mask = lib.create_material_expression(mat, unreal.MaterialExpressionSaturate, -200, 150)
-    lib.connect_material_expressions(depth_norm, "", inside_mask, "")
-
-    # ==================== Emissive ====================
-    # emis_total = Fresnel * FresnelIntensity + inside * InsideIntensity
-    fres_emis = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, -75)
+    # ==================== Emissive = Fresnel * FresnelIntensity * GlowColor ====================
+    fres_emis = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -150, 0)
     lib.connect_material_expressions(fresnel,     "", fres_emis, "A")
     lib.connect_material_expressions(fresnel_int, "", fres_emis, "B")
 
-    inside_emis = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 250)
-    lib.connect_material_expressions(inside_mask, "", inside_emis, "A")
-    lib.connect_material_expressions(inside_int,  "", inside_emis, "B")
-
-    emis_sum = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, -150, 75)
-    lib.connect_material_expressions(fres_emis,   "", emis_sum, "A")
-    lib.connect_material_expressions(inside_emis, "", emis_sum, "B")
-
-    emis_final = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, 100, 0)
+    emis_final = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, 100, -100)
     lib.connect_material_expressions(glow_color, "RGB", emis_final, "A")
-    lib.connect_material_expressions(emis_sum,   "",    emis_final, "B")
+    lib.connect_material_expressions(fres_emis,  "",    emis_final, "B")
     lib.connect_material_property(emis_final, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
-    # ==================== Opacity ====================
-    # opacity = saturate( BaseOpacity + Fresnel * FresnelOpacityWeight + inside )
-    fres_op = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 350)
+    # ==================== Opacity = saturate( BaseOpacity + Fresnel * FresnelOpacityWeight ) ====================
+    fres_op = lib.create_material_expression(mat, unreal.MaterialExpressionMultiply, -150, 200)
     lib.connect_material_expressions(fresnel,      "", fres_op, "A")
     lib.connect_material_expressions(fresnel_op_w, "", fres_op, "B")
 
-    op_sum1 = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, -200, 350)
-    lib.connect_material_expressions(base_op, "", op_sum1, "A")
-    lib.connect_material_expressions(fres_op, "", op_sum1, "B")
+    op_sum = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, 100, 200)
+    lib.connect_material_expressions(base_op, "", op_sum, "A")
+    lib.connect_material_expressions(fres_op, "", op_sum, "B")
 
-    op_sum2 = lib.create_material_expression(mat, unreal.MaterialExpressionAdd, 0, 400)
-    lib.connect_material_expressions(op_sum1,     "", op_sum2, "A")
-    lib.connect_material_expressions(inside_mask, "", op_sum2, "B")
-
-    op_sat = lib.create_material_expression(mat, unreal.MaterialExpressionSaturate, 200, 400)
-    lib.connect_material_expressions(op_sum2, "", op_sat, "")
+    op_sat = lib.create_material_expression(mat, unreal.MaterialExpressionSaturate, 300, 200)
+    lib.connect_material_expressions(op_sum, "", op_sat, "")
     lib.connect_material_property(op_sat, "", unreal.MaterialProperty.MP_OPACITY)
 
     lib.recompile_material(mat)
@@ -256,21 +208,14 @@ def create_dome_material():
 # ---------- 入口 ----------
 
 def run():
-    """默认行为：只创建/更新新版穹面母材质 M_RealmDome。
-    其他既有资产（MPC_RealmReveal、M_Realm_Master、M_Surface_Master、M_RealmSphereOverlay
-    以及基于它们的所有材质实例）一律不动，避免影响他人正在使用的引用。
-    需要从零重建全部资产时，调用 run_full_setup()。"""
+    """默认行为：只创建/更新 M_RealmDome 球壳材质。其他资产不动。"""
     ensure_dir(PACKAGE_PATH)
     create_dome_material()
-    unreal.log(
-        "[Realm] M_RealmDome 已创建/更新。下一步：基于它创建材质实例 "
-        "（内容浏览器里右键 → 创建材质实例），再把材质实例拖到玩家球壳的 元素0 上。"
-    )
+    unreal.log("[Realm] M_RealmDome 已创建/更新。")
 
 
 def run_full_setup():
-    """从零创建/覆盖全部里世界资产（MPC + 两个母材质 + 旧 Overlay + 新 Dome）。
-    会覆盖已有的同名资源 —— 仅在确认没有材质实例还在使用旧母材质时才能跑。"""
+    """从零创建/覆盖全部里世界资产。会覆盖已有的同名资源。"""
     ensure_dir(PACKAGE_PATH)
     mpc = create_mpc()
     create_master_material(REALM_MAT_NAME,   mpc, invert_mask=False)
