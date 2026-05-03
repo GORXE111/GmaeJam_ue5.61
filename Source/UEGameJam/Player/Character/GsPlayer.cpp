@@ -312,6 +312,11 @@ void AGsPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 		{
 			EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AGsPlayer::DoDash);
 		}
+
+		if (FalculaAction)
+		{
+			EnhancedInputComponent->BindAction(FalculaAction, ETriggerEvent::Started, this, &AGsPlayer::DoFalcula);
+		}
 	}
 	else
 	{

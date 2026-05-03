@@ -14,6 +14,7 @@ class UDamageType;
 class UInputAction;
 class UInputComponent;
 class USkeletalMeshComponent;
+class AGsGrapplePoint;
 class AGsSkillBall;
 struct FInputActionValue;
 
@@ -437,6 +438,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void DoDash();
 
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void DoFalcula();
+
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsCharacterActionActive() const;
 
@@ -559,6 +563,9 @@ protected:
 
 	/** 释放一次技能球 */
 	bool StartSkillCast();
+
+	/** 查找当前靠近、准星对准且视线无遮挡的钩爪点 */
+	AGsGrapplePoint* FindReachableGrapplePoint() const;
 
 	/** 读取近战伤害盒当前重叠对象并对命中目标造成伤害 */
 	void PerformMeleeHit();
