@@ -120,10 +120,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide", meta = (ClampMin = 0, Units = "cm/s"))
 	float SlideMaxSpeed = 1800.0f;
 
-	/** 滑行期间循环播放的第一人称蒙太奇，用于表现滑行动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Slide")
-	TObjectPtr<UAnimMontage> SlideMontage;
-
 	/** 近战攻击时播放的动画蒙太奇 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee")
 	TObjectPtr<UAnimMontage> MeleeAttackMontage;
@@ -282,6 +278,9 @@ protected:
 
 	/** 当前滑铲沿锁定方向的速度 */
 	float CurrentSlideSpeed = 0.0f;
+
+	/** 当前是否按住滑铲输入 */
+	bool bIsSlideInputHeld = false;
 
 	/** 进入冲刺时锁定的方向 */
 	FVector DashDirection = FVector::ForwardVector;
@@ -474,9 +473,6 @@ protected:
 	/** 判断滑铲后的胶囊体是否可以安全恢复到站立高度 */
 	bool CanRestoreSlideCapsule() const;
 
-	/** 停止当前滑行蒙太奇，避免误停其他蒙太奇 */
-	void StopSlideMontage();
-
 	/** 每帧更新滑铲速度与结束条件 */
 	void UpdateSlide(float DeltaSeconds);
 
@@ -551,6 +547,10 @@ protected:
 
 	/** 死亡后延时销毁回调 */
 	void OnDeferredDestroy();
+
+	/** 蓝图技能输入回调 */
+	UFUNCTION(BlueprintImplementableEvent, Category="Player Character", meta = (DisplayName = "On Skill Input"))
+	void BP_OnSkillInput();
 
 	/** 蓝图死亡回调 */
 	UFUNCTION(BlueprintImplementableEvent, Category="Player Character", meta = (DisplayName = "On Death"))

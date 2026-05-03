@@ -336,7 +336,14 @@ void AGsPlayer::DoStartFiring()
 
 void AGsPlayer::DoSlide()
 {
-	if (bIsDead || IsWallRunning())
+	if (bIsDead)
+	{
+		return;
+	}
+
+	bIsSlideInputHeld = true;
+
+	if (IsWallRunning())
 	{
 		return;
 	}
@@ -349,6 +356,8 @@ void AGsPlayer::DoSlide()
 
 void AGsPlayer::DoSlideEnd()
 {
+	bIsSlideInputHeld = false;
+
 	if (bIsDead || !IsSliding())
 	{
 		return;

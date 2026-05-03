@@ -30,6 +30,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
 	bool bIsJumpStarting = false;
 
+	/** 是否处于滑铲状态，用于动画状态机切换到滑铲 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Movement")
+	bool bIsSliding = false;
+
 private:
 
 	bool bWasOnGroundLastFrame = false;

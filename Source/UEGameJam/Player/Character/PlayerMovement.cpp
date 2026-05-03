@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/Character/GsPlayer.h"
-#include "Animation/AnimInstance.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -128,17 +127,6 @@ bool AGsPlayer::StartSlide()
 	NewVelocity.Z = PlayerMovementComponent->Velocity.Z;
 	PlayerMovementComponent->Velocity = NewVelocity;
 
-	if (SlideMontage)
-	{
-		if (FirstPersonMesh)
-		{
-			if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
-			{
-				AnimInstance->Montage_Play(SlideMontage);
-			}
-		}
-	}
-
 	return true;
 }
 
@@ -263,8 +251,8 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 
 	if (!PlayerMovementComponent || !PlayerCapsuleComponent)
 	{
-		StopSlideMontage();
 		CurrentSlideSpeed = 0.0f;
+		bIsSlideInputHeld = false;
 		FinishCharacterAction();
 		return true;
 	}
@@ -286,7 +274,7 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 
 	PlayerMovementComponent->MaxWalkSpeed = OriginalSlideMaxWalkSpeed;
 	CurrentSlideSpeed = 0.0f;
-	StopSlideMontage();
+	bIsSlideInputHeld = false;
 	FinishCharacterAction();
 
 	return true;
@@ -328,22 +316,6 @@ bool AGsPlayer::CanRestoreSlideCapsule() const
 		ResponseParams);
 }
 
-void AGsPlayer::StopSlideMontage()
-{
-	if (!SlideMontage)
-	{
-		return;
-	}
-
-	if (FirstPersonMesh)
-	{
-		if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
-		{
-			AnimInstance->Montage_Stop(0.15f, SlideMontage);
-		}
-	}
-}
-
 void AGsPlayer::UpdateSlide(float DeltaSeconds)
 {
 	if (!IsSliding())
@@ -377,9 +349,12 @@ void AGsPlayer::UpdateSlide(float DeltaSeconds)
 		DownhillDirection = DownhillDirection.GetSafeNormal();
 		const float DownhillAlignment = FVector::DotProduct(SlideDirection, DownhillDirection);
 
-		if (DownhillAlignment > KINDA_SMALL_NUMBER && SlideSlopeAcceleration > 0.0f)
+		if (DownhillAlignment > KINDA_SMALL_NUMBER && bIsSlideInputHeld)
 		{
-			CurrentSlideSpeed = FMath::Min(SlideMaxSpeed, CurrentSlideSpeed + (SlideSlopeAcceleration * DownhillAlignment * DeltaSeconds));
+			if (SlideSlopeAcceleration > 0.0f)
+			{
+				CurrentSlideSpeed = FMath::Min(SlideMaxSpeed, CurrentSlideSpeed + (SlideSlopeAcceleration * DownhillAlignment * DeltaSeconds));
+			}
 			bShouldTryStopForLowSpeed = false;
 		}
 		else

@@ -15,6 +15,7 @@
 
 void AGsPlayer::DoSkill()
 {
+	BP_OnSkillInput();
 	StartSkillCast();
 }
 

@@ -21,6 +21,7 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		const AGsPlayer* PlayerCharacter = Cast<AGsPlayer>(OwningPawn);
 		const bool bIsOnGround = MovementComponent && MovementComponent->IsMovingOnGround();
 		const bool bIsInFallingMovementMode = MovementComponent && MovementComponent->IsFalling();
+		bIsSliding = PlayerCharacter && PlayerCharacter->IsSliding();
 		const bool bIsExcludedAirAction = PlayerCharacter && (PlayerCharacter->IsWallRunning() || PlayerCharacter->IsDashing());
 
 		if (bWasOnGroundLastFrame && bIsInFallingMovementMode && PawnVelocity.Z > 0.0f && !bIsExcludedAirAction)
@@ -40,5 +41,6 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsMoving = false;
 	bIsFalling = false;
 	bIsJumpStarting = false;
+	bIsSliding = false;
 	bWasOnGroundLastFrame = false;
 }
