@@ -137,14 +137,6 @@ bool AGsPlayer::StartSlide()
 				AnimInstance->Montage_Play(SlideMontage);
 			}
 		}
-
-		if (USkeletalMeshComponent* WorldMesh = GetMesh())
-		{
-			if (UAnimInstance* AnimInstance = WorldMesh->GetAnimInstance())
-			{
-				AnimInstance->Montage_Play(SlideMontage);
-			}
-		}
 	}
 
 	return true;
@@ -346,14 +338,6 @@ void AGsPlayer::StopSlideMontage()
 	if (FirstPersonMesh)
 	{
 		if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
-		{
-			AnimInstance->Montage_Stop(0.15f, SlideMontage);
-		}
-	}
-
-	if (USkeletalMeshComponent* WorldMesh = GetMesh())
-	{
-		if (UAnimInstance* AnimInstance = WorldMesh->GetAnimInstance())
 		{
 			AnimInstance->Montage_Stop(0.15f, SlideMontage);
 		}

@@ -74,5 +74,10 @@ void APlayerCharacterController::InitializePlayerUI(APawn* InPawn)
 
 	if (AGsPlayer* PlayerCharacter = Cast<AGsPlayer>(InPawn))
 	{
+		PlayerUI->BindPlayer(PlayerCharacter);
+	}
+	else
+	{
+		PlayerUI->BindPlayer(nullptr);
 	}
 }

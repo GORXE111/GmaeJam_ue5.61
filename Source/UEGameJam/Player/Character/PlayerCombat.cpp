@@ -89,6 +89,12 @@ bool AGsPlayer::StartSkillCast()
 		return false;
 	}
 
+	// 上一次技能（飞行小球或落地大球）尚未结束 → 禁止再丢
+	if (AGsSkillBall::IsAnySkillActive())
+	{
+		return false;
+	}
+
 	UWorld* World = GetWorld();
 	if (!World)
 	{

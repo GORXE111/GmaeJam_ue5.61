@@ -39,6 +39,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Realm")
 	void SetRevealRadius(float NewRadius) { RevealRadius = FMath::Max(0.0f, NewRadius); }
 
+	UFUNCTION(BlueprintPure, Category="Realm")
+	float GetRevealRadius() const { return RevealRadius; }
+
 protected:
 	/** 揭示半径（厘米），默认 500 = 5 米 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Realm", meta=(ClampMin=0, Units="cm"))

@@ -6,6 +6,26 @@
 #include "Engine/World.h"
 #include "Player/Skill/GsSkillBigBall.h"
 
+TWeakObjectPtr<AActor> AGsSkillBall::ActiveSkillPtr;
+
+bool AGsSkillBall::IsAnySkillActive()
+{
+	return ActiveSkillPtr.IsValid();
+}
+
+void AGsSkillBall::SetActiveSkill(AActor* InActor)
+{
+	ActiveSkillPtr = InActor;
+}
+
+void AGsSkillBall::ClearActiveSkillIf(AActor* InActor)
+{
+	if (ActiveSkillPtr.Get() == InActor)
+	{
+		ActiveSkillPtr.Reset();
+	}
+}
+
 AGsSkillBall::AGsSkillBall()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -24,12 +44,19 @@ void AGsSkillBall::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SetActiveSkill(this);
 	ApplyFlightBallSettings();
 
 	if (DestroyDelay > 0.0f)
 	{
 		SetLifeSpan(DestroyDelay);
 	}
+}
+
+void AGsSkillBall::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ClearActiveSkillIf(this);
+	Super::EndPlay(EndPlayReason);
 }
 
 void AGsSkillBall::InitializeSkillBall(const FVector& InTargetLocation)

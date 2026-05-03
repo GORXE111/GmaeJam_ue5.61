@@ -45,8 +45,14 @@ AGsPlayer::AGsPlayer()
 	MeleeDamageCollision->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
 	MeleeDamageCollision->SetGenerateOverlapEvents(true);
 
-	GetMesh()->SetOwnerNoSee(true);
-	GetMesh()->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
+	if (USkeletalMeshComponent* WorldMesh = GetMesh())
+	{
+		WorldMesh->SetVisibility(false);
+		WorldMesh->SetHiddenInGame(true);
+		WorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WorldMesh->SetGenerateOverlapEvents(false);
+		WorldMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
+	}
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
 	PlayerMovementComponent->BrakingDecelerationFalling = 1500.0f;
@@ -90,6 +96,14 @@ void AGsPlayer::BeginPlay()
 		TargetWallRunCameraRoll = 0.0f;
 		CurrentWallRunCameraRoll = 0.0f;
 		FirstPersonCameraComponent->SetFieldOfView(DefaultCameraFOV);
+	}
+
+	if (USkeletalMeshComponent* WorldMesh = GetMesh())
+	{
+		WorldMesh->SetVisibility(false);
+		WorldMesh->SetHiddenInGame(true);
+		WorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WorldMesh->SetGenerateOverlapEvents(false);
 	}
 
 	OnDamaged.Broadcast(GetLifePercent());
@@ -258,14 +272,9 @@ float AGsPlayer::TakeDamage(float Damage, const FDamageEvent& DamageEvent, ACont
 		return 0.0f;
 	}
 
-	const float AppliedDamage = FMath::Min(CurrentHP, Damage);
-	CurrentHP = FMath::Clamp(CurrentHP - Damage, 0.0f, MaxHP);
-	OnDamaged.Broadcast(GetLifePercent());
-
-	if (CurrentHP <= 0.0f)
-	{
-		Die();
-	}
+	const float AppliedDamage = CurrentHP;
+	CurrentHP = 0.0f;
+	Die();
 
 	return AppliedDamage;
 }
@@ -577,6 +586,7 @@ void AGsPlayer::Die()
 
 	DisableInput(Cast<APlayerController>(GetController()));
 	OnDamaged.Broadcast(0.0f);
+	OnDeath.Broadcast();
 	BP_OnDeath();
 
 	if (DeferredDestructionTime <= 0.0f)
