@@ -43,6 +43,7 @@ public class UEGameJam : ModuleRules
 			"UEGameJam/Enemy/Melee",
 			"UEGameJam/Enemy/Pistol",
 			"UEGameJam/Enemy/MachineGun",
+			"UEGameJam/Enemy/Ghost",
 			"UEGameJam/Variant_Horror",
 			"UEGameJam/Variant_Horror/UI",
 			"UEGameJam/Variant_Shooter",
