@@ -122,6 +122,7 @@ bool AGsPlayer::StartSlide()
 
 	PlayerMovementComponent->MaxWalkSpeed = FMath::Max(SlideSpeed, SlideMaxSpeed);
 	CurrentSlideSpeed = SlideSpeed;
+	bIsWaitingToStopSlideWhenCanStand = false;
 
 	FVector NewVelocity = SlideDirection * CurrentSlideSpeed;
 	NewVelocity.Z = PlayerMovementComponent->Velocity.Z;
@@ -243,6 +244,7 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 {
 	if (!IsSliding())
 	{
+		bIsWaitingToStopSlideWhenCanStand = false;
 		return true;
 	}
 
@@ -253,12 +255,14 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 	{
 		CurrentSlideSpeed = 0.0f;
 		bIsSlideInputHeld = false;
+		bIsWaitingToStopSlideWhenCanStand = false;
 		FinishCharacterAction();
 		return true;
 	}
 
 	if (!bForceRestore && !CanRestoreSlideCapsule())
 	{
+		bIsWaitingToStopSlideWhenCanStand = true;
 		return false;
 	}
 
@@ -275,6 +279,7 @@ bool AGsPlayer::StopSlide(bool bForceRestore)
 	PlayerMovementComponent->MaxWalkSpeed = OriginalSlideMaxWalkSpeed;
 	CurrentSlideSpeed = 0.0f;
 	bIsSlideInputHeld = false;
+	bIsWaitingToStopSlideWhenCanStand = false;
 	FinishCharacterAction();
 
 	return true;
@@ -336,6 +341,25 @@ void AGsPlayer::UpdateSlide(float DeltaSeconds)
 		return;
 	}
 
+	if (bIsWaitingToStopSlideWhenCanStand)
+	{
+		if (!CanRestoreSlideCapsule())
+		{
+			FVector NewVelocity = SlideDirection * CurrentSlideSpeed;
+			NewVelocity.Z = PlayerMovementComponent->Velocity.Z;
+			PlayerMovementComponent->Velocity = NewVelocity;
+			return;
+		}
+
+		if (!bIsSlideInputHeld)
+		{
+			StopSlide(false);
+			return;
+		}
+
+		bIsWaitingToStopSlideWhenCanStand = false;
+	}
+
 	bool bShouldTryStopForLowSpeed = true;
 	const FFindFloorResult& CurrentFloor = PlayerMovementComponent->CurrentFloor;
 	if (CurrentFloor.IsWalkableFloor())
@@ -373,8 +397,6 @@ void AGsPlayer::UpdateSlide(float DeltaSeconds)
 		{
 			return;
 		}
-
-		CurrentSlideSpeed = SlideStopSpeed;
 	}
 
 	FVector NewVelocity = SlideDirection * CurrentSlideSpeed;

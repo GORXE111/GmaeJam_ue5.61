@@ -282,6 +282,9 @@ protected:
 	/** 当前是否按住滑铲输入 */
 	bool bIsSlideInputHeld = false;
 
+	/** 是否已经请求停止滑铲，但因为头顶空间不足正在等待可以站立 */
+	bool bIsWaitingToStopSlideWhenCanStand = false;
+
 	/** 进入冲刺时锁定的方向 */
 	FVector DashDirection = FVector::ForwardVector;
 

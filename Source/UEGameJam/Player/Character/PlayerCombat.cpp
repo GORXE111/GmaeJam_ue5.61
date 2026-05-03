@@ -102,7 +102,9 @@ bool AGsPlayer::StartSkillCast()
 		return false;
 	}
 
-	if (!TryStartCharacterAction(EUEGameJamPlayerAction::Skill, SkillActionDuration))
+	const bool bIsSkillDuringSlide = IsSliding();
+	const bool bStartedSkillAction = !bIsSkillDuringSlide;
+	if (bStartedSkillAction && !TryStartCharacterAction(EUEGameJamPlayerAction::Skill, SkillActionDuration))
 	{
 		return false;
 	}
@@ -124,7 +126,10 @@ bool AGsPlayer::StartSkillCast()
 	AGsSkillBall* SpawnedSkillBall = World->SpawnActor<AGsSkillBall>(SkillProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
 	if (!SpawnedSkillBall)
 	{
-		FinishCharacterAction();
+		if (bStartedSkillAction)
+		{
+			FinishCharacterAction();
+		}
 		return false;
 	}
 
