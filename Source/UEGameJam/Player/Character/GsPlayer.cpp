@@ -68,6 +68,8 @@ void AGsPlayer::BeginPlay()
 {
 	Super::BeginPlay();
 
+	ApplyPlayerTuningFromDataTable();
+
 	CurrentHP = MaxHP;
 	bIsDead = false;
 	bHasDashedSinceLanded = false;
@@ -107,6 +109,88 @@ void AGsPlayer::BeginPlay()
 	}
 
 	OnDamaged.Broadcast(GetLifePercent());
+}
+
+void AGsPlayer::ApplyPlayerTuningFromDataTable()
+{
+	const FGsPlayerTuningRow DefaultTuningRow;
+
+	if (!PlayerTuningTable)
+	{
+		ApplyPlayerTuning(DefaultTuningRow);
+		UE_LOG(LogUEGameJam, Warning, TEXT("'%s' 未配置玩家手感数值表 PlayerTuningTable，使用 C++ 默认手感数值。"), *GetNameSafe(this));
+		return;
+	}
+
+	if (PlayerTuningRowName.IsNone())
+	{
+		ApplyPlayerTuning(DefaultTuningRow);
+		UE_LOG(LogUEGameJam, Warning, TEXT("'%s' 玩家手感数值表行名为空，使用 C++ 默认手感数值。"), *GetNameSafe(this));
+		return;
+	}
+
+	const FString ContextString = FString::Printf(TEXT("%s PlayerTuning"), *GetNameSafe(this));
+	const FGsPlayerTuningRow* TuningRow = PlayerTuningTable->FindRow<FGsPlayerTuningRow>(PlayerTuningRowName, ContextString, false);
+	if (!TuningRow)
+	{
+		ApplyPlayerTuning(DefaultTuningRow);
+		UE_LOG(
+			LogUEGameJam,
+			Warning,
+			TEXT("'%s' 玩家手感数值表 '%s' 找不到行 '%s'，使用 C++ 默认手感数值。"),
+			*GetNameSafe(this),
+			*GetPathNameSafe(PlayerTuningTable),
+			*PlayerTuningRowName.ToString());
+		return;
+	}
+
+	ApplyPlayerTuning(*TuningRow);
+}
+
+void AGsPlayer::ApplyPlayerTuning(const FGsPlayerTuningRow& TuningRow)
+{
+	DashSpeed = TuningRow.DashSpeed;
+	DashDuration = TuningRow.DashDuration;
+	DashCooldown = TuningRow.DashCooldown;
+
+	SlideSpeed = TuningRow.SlideSpeed;
+	SlideCapsuleHalfHeight = TuningRow.SlideCapsuleHalfHeight;
+	SlideStopSpeed = TuningRow.SlideStopSpeed;
+	SlideDeceleration = TuningRow.SlideDeceleration;
+	SlideSlopeAcceleration = TuningRow.SlideSlopeAcceleration;
+	SlideMaxSpeed = TuningRow.SlideMaxSpeed;
+
+	MeleeDamage = TuningRow.MeleeDamage;
+	MeleeFallbackDuration = TuningRow.MeleeFallbackDuration;
+	MeleeHitDelay = TuningRow.MeleeHitDelay;
+
+	SkillSpawnForwardOffset = TuningRow.SkillSpawnForwardOffset;
+	SkillAimTraceDistance = TuningRow.SkillAimTraceDistance;
+	SkillActionDuration = TuningRow.SkillActionDuration;
+
+	DefaultCameraFOV = TuningRow.DefaultCameraFOV;
+	RunningCameraFOV = TuningRow.RunningCameraFOV;
+	DashCameraFOV = TuningRow.DashCameraFOV;
+	RunFOVSpeedThreshold = TuningRow.RunFOVSpeedThreshold;
+	CameraFOVInterpSpeed = TuningRow.CameraFOVInterpSpeed;
+	HeadCameraRotationBlendAlpha = TuningRow.HeadCameraRotationBlendAlpha;
+	HeadCameraRotationInterpSpeed = TuningRow.HeadCameraRotationInterpSpeed;
+
+	WallRunCheckDelay = TuningRow.WallRunCheckDelay;
+	WallRunSideTraceDistance = TuningRow.WallRunSideTraceDistance;
+	WallRunMaxCameraWallNormalDot = TuningRow.WallRunMaxCameraWallNormalDot;
+	WallRunMinForwardCameraDot = TuningRow.WallRunMinForwardCameraDot;
+	WallRunSpeed = TuningRow.WallRunSpeed;
+	WallRunJumpHorizontalStrength = TuningRow.WallRunJumpHorizontalStrength;
+	WallRunJumpVerticalStrength = TuningRow.WallRunJumpVerticalStrength;
+	WallRunCameraTiltAngle = TuningRow.WallRunCameraTiltAngle;
+	WallRunCameraTiltInterpSpeed = TuningRow.WallRunCameraTiltInterpSpeed;
+
+	FallResetDepth = TuningRow.FallResetDepth;
+	SafeLandingMinInterval = TuningRow.SafeLandingMinInterval;
+
+	MaxHP = TuningRow.MaxHP;
+	DeferredDestructionTime = TuningRow.DeferredDestructionTime;
 }
 
 void AGsPlayer::Tick(float DeltaSeconds)

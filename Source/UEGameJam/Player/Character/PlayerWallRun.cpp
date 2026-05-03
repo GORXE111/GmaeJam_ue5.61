@@ -158,6 +158,48 @@ bool AGsPlayer::TryFindWallRunSurface(FHitResult& OutWallHit, FVector& OutWallNo
 	return true;
 }
 
+bool AGsPlayer::TryFindWallRunSurfaceAlongNormal(const FVector& ExpectedWallNormal, FHitResult& OutWallHit, FVector& OutWallNormal) const
+{
+	OutWallHit = FHitResult();
+	OutWallNormal = FVector::ZeroVector;
+
+	const UCapsuleComponent* PlayerCapsuleComponent = GetCapsuleComponent();
+	UWorld* World = GetWorld();
+	if (!PlayerCapsuleComponent || !World || WallRunSideTraceDistance <= 0.0f)
+	{
+		return false;
+	}
+
+	const FVector TraceDirection = -ExpectedWallNormal.GetSafeNormal2D();
+	if (TraceDirection.IsNearlyZero())
+	{
+		return false;
+	}
+
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(WallRunNormalTrace), false, this);
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+	const FVector TraceStart = GetActorLocation();
+	const FVector TraceEnd = TraceStart + (TraceDirection * WallRunSideTraceDistance);
+	if (!World->LineTraceSingleByObjectType(OutWallHit, TraceStart, TraceEnd, ObjectQueryParams, QueryParams))
+	{
+		return false;
+	}
+
+	FVector WallNormal = OutWallHit.ImpactNormal.IsNearlyZero() ? OutWallHit.Normal : OutWallHit.ImpactNormal;
+	WallNormal = FVector::VectorPlaneProject(WallNormal, FVector::UpVector);
+	if (!WallNormal.Normalize())
+	{
+		OutWallHit = FHitResult();
+		return false;
+	}
+
+	OutWallNormal = WallNormal;
+	return true;
+}
+
 bool AGsPlayer::CanTriggerWallRun(const FVector& WallNormal) const
 {
 	if (!FirstPersonCameraComponent || CachedMoveInput.Y <= 0.1f)
@@ -263,7 +305,7 @@ void AGsPlayer::UpdateWallRun(float DeltaSeconds)
 
 	FHitResult WallHit;
 	FVector CurrentWallNormal = FVector::ZeroVector;
-	if (!TryFindWallRunSurface(WallHit, CurrentWallNormal))
+	if (!TryFindWallRunSurfaceAlongNormal(WallRunSurfaceNormal, WallHit, CurrentWallNormal))
 	{
 		StopWallRun();
 		return;
