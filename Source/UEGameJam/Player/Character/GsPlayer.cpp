@@ -171,6 +171,7 @@ void AGsPlayer::ApplyPlayerTuning(const FGsPlayerTuningRow& TuningRow)
 	DefaultCameraFOV = TuningRow.DefaultCameraFOV;
 	RunningCameraFOV = TuningRow.RunningCameraFOV;
 	DashCameraFOV = TuningRow.DashCameraFOV;
+	SlideCameraFOV = TuningRow.SlideCameraFOV;
 	RunFOVSpeedThreshold = TuningRow.RunFOVSpeedThreshold;
 	CameraFOVInterpSpeed = TuningRow.CameraFOVInterpSpeed;
 	HeadCameraRotationBlendAlpha = TuningRow.HeadCameraRotationBlendAlpha;
@@ -190,6 +191,13 @@ void AGsPlayer::ApplyPlayerTuning(const FGsPlayerTuningRow& TuningRow)
 	SafeLandingMinInterval = TuningRow.SafeLandingMinInterval;
 
 	MaxHP = TuningRow.MaxHP;
+	if (MaxHP == 500)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("！！Player蓝图的表空了！！"));
+		}
+	}
 	DeferredDestructionTime = TuningRow.DeferredDestructionTime;
 }
 
@@ -233,9 +241,19 @@ void AGsPlayer::Tick(float DeltaSeconds)
 		return;
 	}
 
-	const float TargetFOV = IsDashing()
-		? DashCameraFOV
-		: (GetVelocity().Size2D() >= RunFOVSpeedThreshold ? RunningCameraFOV : DefaultCameraFOV);
+	float TargetFOV = DefaultCameraFOV;
+	if (GetVelocity().Size2D() >= RunFOVSpeedThreshold)
+	{
+		TargetFOV = RunningCameraFOV;
+	}
+	if (IsSliding())
+	{
+		TargetFOV = SlideCameraFOV;
+	}
+	if (IsDashing())
+	{
+		TargetFOV = DashCameraFOV;
+	}
 	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, CameraFOVInterpSpeed);
 	FirstPersonCameraComponent->SetFieldOfView(NewFOV);
 	UpdateWallRunCameraTilt(DeltaSeconds);
