@@ -8,10 +8,11 @@
 #include "EnhancedInputComponent.h"
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/DamageType.h"
 #include "InputActionValue.h"
 #include "TimerManager.h"
 #include "UEGameJam.h"
+#include "Player/Character/GsPlayerResourceDataAsset.h"
+#include "RealmRevealerComponent.h"
 
 AGsPlayer::AGsPlayer()
 {
@@ -61,8 +62,6 @@ AGsPlayer::AGsPlayer()
 	PlayerMovementComponent->RotationRate = FRotator(0.0f, 600.0f, 0.0f);
 	
 	Tags.Add(FName("Player"));
-
-	MeleeDamageType = UDamageType::StaticClass();
 }
 
 void AGsPlayer::BeginPlay()
@@ -258,48 +257,17 @@ void AGsPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		if (JumpAction)
-		{
-			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AGsPlayer::DoJumpStart);
-			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AGsPlayer::DoJumpEnd);
-		}
-
-		if (MoveAction)
-		{
-			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AGsPlayer::MoveInput);
-			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AGsPlayer::OnMoveInputCompleted);
-		}
-
-		if (MouseLookAction)
-		{
-			EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AGsPlayer::LookInput);
-		}
-
-		if (FireAction)
-		{
-			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &AGsPlayer::DoStartFiring);
-		}
-
-		if (SkillAction)
-		{
-			EnhancedInputComponent->BindAction(SkillAction, ETriggerEvent::Started, this, &AGsPlayer::DoSkill);
-		}
-
-		if (SlideAction)
-		{
-			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Started, this, &AGsPlayer::DoSlide);
-			EnhancedInputComponent->BindAction(SlideAction, ETriggerEvent::Completed, this, &AGsPlayer::DoSlideEnd);
-		}
-
-		if (DashAction)
-		{
-			EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AGsPlayer::DoDash);
-		}
-
-		if (FalculaAction)
-		{
-			EnhancedInputComponent->BindAction(FalculaAction, ETriggerEvent::Started, this, &AGsPlayer::DoFalcula);
-		}
+		EnhancedInputComponent->BindAction(PlayerResourceData->JumpAction, ETriggerEvent::Started, this, &AGsPlayer::DoJumpStart);
+		EnhancedInputComponent->BindAction(PlayerResourceData->JumpAction, ETriggerEvent::Completed, this, &AGsPlayer::DoJumpEnd);
+		EnhancedInputComponent->BindAction(PlayerResourceData->MoveAction, ETriggerEvent::Triggered, this, &AGsPlayer::MoveInput);
+		EnhancedInputComponent->BindAction(PlayerResourceData->MoveAction, ETriggerEvent::Completed, this, &AGsPlayer::OnMoveInputCompleted);
+		EnhancedInputComponent->BindAction(PlayerResourceData->MouseLookAction, ETriggerEvent::Triggered, this, &AGsPlayer::LookInput);
+		EnhancedInputComponent->BindAction(PlayerResourceData->FireAction, ETriggerEvent::Started, this, &AGsPlayer::DoStartFiring);
+		EnhancedInputComponent->BindAction(PlayerResourceData->SkillAction, ETriggerEvent::Started, this, &AGsPlayer::DoSkill);
+		EnhancedInputComponent->BindAction(PlayerResourceData->SlideAction, ETriggerEvent::Started, this, &AGsPlayer::DoSlide);
+		EnhancedInputComponent->BindAction(PlayerResourceData->SlideAction, ETriggerEvent::Completed, this, &AGsPlayer::DoSlideEnd);
+		EnhancedInputComponent->BindAction(PlayerResourceData->DashAction, ETriggerEvent::Started, this, &AGsPlayer::DoDash);
+		EnhancedInputComponent->BindAction(PlayerResourceData->FalculaAction, ETriggerEvent::Started, this, &AGsPlayer::DoFalcula);
 	}
 	else
 	{
@@ -349,6 +317,18 @@ float AGsPlayer::TakeDamage(float Damage, const FDamageEvent& DamageEvent, ACont
 	Die();
 
 	return AppliedDamage;
+}
+
+bool AGsPlayer::IsInsideActiveRealmReveal() const
+{
+	if (!URealmRevealerComponent::IsAnyActive())
+	{
+		return false;
+	}
+
+	const FVector Center = URealmRevealerComponent::GetActiveCenter();
+	const float Radius = URealmRevealerComponent::GetActiveRadius();
+	return FVector::DistSquared(GetActorLocation(), Center) <= Radius * Radius;
 }
 
 void AGsPlayer::DoAim(float Yaw, float Pitch)

@@ -7,15 +7,12 @@
 #include "Player/Character/GsPlayerTuning.h"
 #include "GsPlayer.generated.h"
 
-class UAnimMontage;
 class UBoxComponent;
 class UCameraComponent;
-class UDamageType;
-class UInputAction;
 class UInputComponent;
 class USkeletalMeshComponent;
+class UGsPlayerResourceDataAsset;
 class AGsGrapplePoint;
-class AGsSkillBall;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUEGameJamPlayerDamagedDelegate, float, LifePercent);
@@ -54,37 +51,9 @@ class UEGAMEJAM_API AGsPlayer : public ACharacter
 
 protected:
 
-	/** 跳跃输入动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> JumpAction;
-
-	/** 移动输入动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> MoveAction;
-
-	/** 鼠标视角输入动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> MouseLookAction;
-
-	/** 近战攻击输入动作，沿用 FireAction 名称以兼容输入资源 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> FireAction;
-	
-	/** 技能输入动作，用于释放技能球 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> SkillAction;
-
-	/** 滑铲输入动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> SlideAction;
-
-	/** 冲刺输入动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> DashAction;
-	
-	/** 钩爪输入动作 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInputAction> FalculaAction;
+	/** 玩家资源引用配置，用于集中填写输入、近战和技能资源 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Resources", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UGsPlayerResourceDataAsset> PlayerResourceData;
 
 	/** 玩家手感数值表，策划和程序在表中调整纯数值参数，避免直接修改角色蓝图 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Tuning", meta = (AllowPrivateAccess = "true"))
@@ -99,22 +68,6 @@ protected:
 
 	/** 当前运行时使用的玩家手感数值行，通常指向 DataTable 中的行 */
 	const FGsPlayerTuningRow* CurrentPlayerTuning = &DefaultPlayerTuning;
-
-	/** 近战攻击时播放的动画蒙太奇 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee")
-	TObjectPtr<UAnimMontage> MeleeAttackMontage;
-
-	/** 近战攻击使用的伤害类型 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Melee")
-	TSubclassOf<UDamageType> MeleeDamageType;
-
-	/** 技能释放时生成的技能球类，可在蓝图中替换具体表现 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<AGsSkillBall> SkillProjectileClass;
-
-	/** 旧版技能发射 Socket 配置，当前极简发射逻辑不再使用 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill", meta = (AllowPrivateAccess = "true"))
-	FName SkillSpawnSocketName = NAME_None;
 
 	/** 当前生命值 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Health", meta = (AllowPrivateAccess = "true"))
@@ -276,6 +229,9 @@ protected:
 public:
 
 	virtual float TakeDamage(float Damage, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	UFUNCTION(BlueprintPure, Category="Player Character|Realm")
+	bool IsInsideActiveRealmReveal() const;
 
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoAim(float Yaw, float Pitch);

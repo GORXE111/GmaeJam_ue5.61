@@ -10,6 +10,7 @@
 #include "GameFramework/DamageType.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/Character/GsPlayerResourceDataAsset.h"
 #include "Player/Skill/GsSkillBall.h"
 #include "TimerManager.h"
 
@@ -29,11 +30,11 @@ bool AGsPlayer::StartMeleeAttack()
 	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	float ActionDuration = PlayerTuning.MeleeFallbackDuration;
 
-	if (MeleeAttackMontage && FirstPersonMesh)
+	if (FirstPersonMesh)
 	{
 		if (UAnimInstance* AnimInstance = FirstPersonMesh->GetAnimInstance())
 		{
-			const float MontageDuration = AnimInstance->Montage_Play(MeleeAttackMontage);
+			const float MontageDuration = AnimInstance->Montage_Play(PlayerResourceData->MeleeAttackMontage);
 			if (MontageDuration > 0.0f)
 			{
 				ActionDuration = MontageDuration;
@@ -86,7 +87,7 @@ FVector AGsPlayer::GetSkillAimTarget(const FVector& ViewLocation, const FVector&
 
 bool AGsPlayer::StartSkillCast()
 {
-	if (bIsDead || !SkillProjectileClass)
+	if (bIsDead)
 	{
 		return false;
 	}
@@ -124,7 +125,7 @@ bool AGsPlayer::StartSkillCast()
 	SpawnParams.Instigator = this;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	AGsSkillBall* SpawnedSkillBall = World->SpawnActor<AGsSkillBall>(SkillProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
+	AGsSkillBall* SpawnedSkillBall = World->SpawnActor<AGsSkillBall>(PlayerResourceData->SkillProjectileClass, SpawnLocation, SpawnRotation, SpawnParams);
 	if (!SpawnedSkillBall)
 	{
 		if (bStartedSkillAction)
@@ -184,6 +185,6 @@ void AGsPlayer::PerformMeleeHit()
 		}
 
 		DamagedActors.Add(HitActor);
-		UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, MeleeDamageType);
+		UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
 	}
 }
