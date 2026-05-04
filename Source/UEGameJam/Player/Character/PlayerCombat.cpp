@@ -26,7 +26,8 @@ bool AGsPlayer::StartMeleeAttack()
 		return false;
 	}
 
-	float ActionDuration = MeleeFallbackDuration;
+	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
+	float ActionDuration = PlayerTuning.MeleeFallbackDuration;
 
 	if (MeleeAttackMontage && FirstPersonMesh)
 	{
@@ -53,13 +54,13 @@ bool AGsPlayer::StartMeleeAttack()
 
 	World->GetTimerManager().ClearTimer(MeleeHitTimer);
 
-	if (MeleeHitDelay <= 0.0f)
+	if (PlayerTuning.MeleeHitDelay <= 0.0f)
 	{
 		PerformMeleeHit();
 	}
 	else
 	{
-		World->GetTimerManager().SetTimer(MeleeHitTimer, this, &AGsPlayer::PerformMeleeHit, MeleeHitDelay, false);
+		World->GetTimerManager().SetTimer(MeleeHitTimer, this, &AGsPlayer::PerformMeleeHit, PlayerTuning.MeleeHitDelay, false);
 	}
 
 	return true;
@@ -67,7 +68,7 @@ bool AGsPlayer::StartMeleeAttack()
 
 FVector AGsPlayer::GetSkillAimTarget(const FVector& ViewLocation, const FVector& ViewDirection) const
 {
-	const FVector TraceEnd = ViewLocation + (ViewDirection * SkillAimTraceDistance);
+	const FVector TraceEnd = ViewLocation + (ViewDirection * GetPlayerTuning().SkillAimTraceDistance);
 
 	UWorld* World = GetWorld();
 	if (!World)
@@ -102,9 +103,9 @@ bool AGsPlayer::StartSkillCast()
 		return false;
 	}
 
-	const bool bIsSkillDuringSlide = IsSliding();
-	const bool bStartedSkillAction = !bIsSkillDuringSlide;
-	if (bStartedSkillAction && !TryStartCharacterAction(EUEGameJamPlayerAction::Skill, SkillActionDuration))
+	const bool bShouldBypassSkillAction = IsSliding() || IsWallRunning();
+	const bool bStartedSkillAction = !bShouldBypassSkillAction;
+	if (bStartedSkillAction && !TryStartCharacterAction(EUEGameJamPlayerAction::Skill, GetPlayerTuning().SkillActionDuration))
 	{
 		return false;
 	}
@@ -148,6 +149,7 @@ void AGsPlayer::PerformMeleeHit()
 
 	World->GetTimerManager().ClearTimer(MeleeHitTimer);
 
+	const float MeleeDamage = GetPlayerTuning().MeleeDamage;
 	if (MeleeDamage <= 0.0f)
 	{
 		return;

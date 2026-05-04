@@ -6,6 +6,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
+#include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/DamageType.h"
 #include "InputActionValue.h"
@@ -69,8 +70,9 @@ void AGsPlayer::BeginPlay()
 	Super::BeginPlay();
 
 	ApplyPlayerTuningFromDataTable();
+	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 
-	CurrentHP = MaxHP;
+	CurrentHP = PlayerTuning.MaxHP;
 	bIsDead = false;
 	bHasDashedSinceLanded = false;
 	PreDashVelocity = FVector::ZeroVector;
@@ -82,13 +84,13 @@ void AGsPlayer::BeginPlay()
 	LastSafeLocation = GetActorLocation();
 	LastSafeRotation = GetActorRotation();
 	bHasSafeLocation = true;
-	LastFallRecoveryTime = -SafeLandingMinInterval;
-	LastDashTime = -DashCooldown;
+	LastFallRecoveryTime = -PlayerTuning.SafeLandingMinInterval;
+	LastDashTime = -PlayerTuning.DashCooldown;
 	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
 	{
-		LastDashTime = World->GetTimeSeconds() - DashCooldown;
+		LastDashTime = World->GetTimeSeconds() - PlayerTuning.DashCooldown;
 	}
 
 	if (FirstPersonCameraComponent)
@@ -97,7 +99,7 @@ void AGsPlayer::BeginPlay()
 		CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
 		TargetWallRunCameraRoll = 0.0f;
 		CurrentWallRunCameraRoll = 0.0f;
-		FirstPersonCameraComponent->SetFieldOfView(DefaultCameraFOV);
+		FirstPersonCameraComponent->SetFieldOfView(PlayerTuning.DefaultCameraFOV);
 	}
 
 	if (USkeletalMeshComponent* WorldMesh = GetMesh())
@@ -113,19 +115,31 @@ void AGsPlayer::BeginPlay()
 
 void AGsPlayer::ApplyPlayerTuningFromDataTable()
 {
-	const FGsPlayerTuningRow DefaultTuningRow;
+	CurrentPlayerTuning = &DefaultPlayerTuning;
 
 	if (!PlayerTuningTable)
 	{
-		ApplyPlayerTuning(DefaultTuningRow);
-		UE_LOG(LogUEGameJam, Warning, TEXT("'%s' 未配置玩家手感数值表 PlayerTuningTable，使用 C++ 默认手感数值。"), *GetNameSafe(this));
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				3.0f,
+				FColor::Red,
+				FString::Printf(TEXT("'%s' 未配置玩家手感数值表 PlayerTuningTable，使用 C++ 默认手感数值。"), *GetNameSafe(this)));
+		}
 		return;
 	}
 
 	if (PlayerTuningRowName.IsNone())
 	{
-		ApplyPlayerTuning(DefaultTuningRow);
-		UE_LOG(LogUEGameJam, Warning, TEXT("'%s' 玩家手感数值表行名为空，使用 C++ 默认手感数值。"), *GetNameSafe(this));
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				3.0f,
+				FColor::Red,
+				FString::Printf(TEXT("'%s' 玩家手感数值表行名为空，使用 C++ 默认手感数值。"), *GetNameSafe(this)));
+		}
 		return;
 	}
 
@@ -133,72 +147,22 @@ void AGsPlayer::ApplyPlayerTuningFromDataTable()
 	const FGsPlayerTuningRow* TuningRow = PlayerTuningTable->FindRow<FGsPlayerTuningRow>(PlayerTuningRowName, ContextString, false);
 	if (!TuningRow)
 	{
-		ApplyPlayerTuning(DefaultTuningRow);
-		UE_LOG(
-			LogUEGameJam,
-			Warning,
-			TEXT("'%s' 玩家手感数值表 '%s' 找不到行 '%s'，使用 C++ 默认手感数值。"),
-			*GetNameSafe(this),
-			*GetPathNameSafe(PlayerTuningTable),
-			*PlayerTuningRowName.ToString());
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				-1,
+				3.0f,
+				FColor::Red,
+				FString::Printf(
+					TEXT("'%s' 玩家手感数值表 '%s' 找不到行 '%s'，使用 C++ 默认手感数值。"),
+					*GetNameSafe(this),
+					*GetPathNameSafe(PlayerTuningTable),
+					*PlayerTuningRowName.ToString()));
+		}
 		return;
 	}
 
-	ApplyPlayerTuning(*TuningRow);
-}
-
-void AGsPlayer::ApplyPlayerTuning(const FGsPlayerTuningRow& TuningRow)
-{
-	DashSpeed = TuningRow.DashSpeed;
-	DashDuration = TuningRow.DashDuration;
-	DashCooldown = TuningRow.DashCooldown;
-
-	SlideSpeed = TuningRow.SlideSpeed;
-	SlideCapsuleHalfHeight = TuningRow.SlideCapsuleHalfHeight;
-	SlideStopSpeed = TuningRow.SlideStopSpeed;
-	SlideDeceleration = TuningRow.SlideDeceleration;
-	SlideSlopeAcceleration = TuningRow.SlideSlopeAcceleration;
-	SlideMaxSpeed = TuningRow.SlideMaxSpeed;
-
-	MeleeDamage = TuningRow.MeleeDamage;
-	MeleeFallbackDuration = TuningRow.MeleeFallbackDuration;
-	MeleeHitDelay = TuningRow.MeleeHitDelay;
-
-	SkillSpawnForwardOffset = TuningRow.SkillSpawnForwardOffset;
-	SkillAimTraceDistance = TuningRow.SkillAimTraceDistance;
-	SkillActionDuration = TuningRow.SkillActionDuration;
-
-	DefaultCameraFOV = TuningRow.DefaultCameraFOV;
-	RunningCameraFOV = TuningRow.RunningCameraFOV;
-	DashCameraFOV = TuningRow.DashCameraFOV;
-	SlideCameraFOV = TuningRow.SlideCameraFOV;
-	RunFOVSpeedThreshold = TuningRow.RunFOVSpeedThreshold;
-	CameraFOVInterpSpeed = TuningRow.CameraFOVInterpSpeed;
-	HeadCameraRotationBlendAlpha = TuningRow.HeadCameraRotationBlendAlpha;
-	HeadCameraRotationInterpSpeed = TuningRow.HeadCameraRotationInterpSpeed;
-
-	WallRunCheckDelay = TuningRow.WallRunCheckDelay;
-	WallRunSideTraceDistance = TuningRow.WallRunSideTraceDistance;
-	WallRunMaxCameraWallNormalDot = TuningRow.WallRunMaxCameraWallNormalDot;
-	WallRunMinForwardCameraDot = TuningRow.WallRunMinForwardCameraDot;
-	WallRunSpeed = TuningRow.WallRunSpeed;
-	WallRunJumpHorizontalStrength = TuningRow.WallRunJumpHorizontalStrength;
-	WallRunJumpVerticalStrength = TuningRow.WallRunJumpVerticalStrength;
-	WallRunCameraTiltAngle = TuningRow.WallRunCameraTiltAngle;
-	WallRunCameraTiltInterpSpeed = TuningRow.WallRunCameraTiltInterpSpeed;
-
-	FallResetDepth = TuningRow.FallResetDepth;
-	SafeLandingMinInterval = TuningRow.SafeLandingMinInterval;
-
-	MaxHP = TuningRow.MaxHP;
-	if (MaxHP == 500)
-	{
-		if (GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("！！Player蓝图的表空了！！"));
-		}
-	}
-	DeferredDestructionTime = TuningRow.DeferredDestructionTime;
+	CurrentPlayerTuning = TuningRow;
 }
 
 void AGsPlayer::Tick(float DeltaSeconds)
@@ -220,17 +184,18 @@ void AGsPlayer::Tick(float DeltaSeconds)
 	UpdateWallRun(DeltaSeconds);
 	UpdateWallRunDetection();
 
+	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
 	if (PlayerMovementComponent
 		&& PlayerMovementComponent->IsFalling()
 		&& bHasSafeLocation
 		&& !bIsRecoveringFromFall
-		&& FallResetDepth > 0.0f)
+		&& PlayerTuning.FallResetDepth > 0.0f)
 	{
 		UWorld* World = GetWorld();
 		const float CurrentWorldTime = World ? World->GetTimeSeconds() : 0.0f;
-		if ((CurrentWorldTime - LastFallRecoveryTime) >= SafeLandingMinInterval
-			&& GetActorLocation().Z <= (LastSafeLocation.Z - FallResetDepth))
+		if ((CurrentWorldTime - LastFallRecoveryTime) >= PlayerTuning.SafeLandingMinInterval
+			&& GetActorLocation().Z <= (LastSafeLocation.Z - PlayerTuning.FallResetDepth))
 		{
 			RecoverFromDeepFall();
 		}
@@ -241,20 +206,20 @@ void AGsPlayer::Tick(float DeltaSeconds)
 		return;
 	}
 
-	float TargetFOV = DefaultCameraFOV;
-	if (GetVelocity().Size2D() >= RunFOVSpeedThreshold)
+	float TargetFOV = PlayerTuning.DefaultCameraFOV;
+	if (GetVelocity().Size2D() >= PlayerTuning.RunFOVSpeedThreshold)
 	{
-		TargetFOV = RunningCameraFOV;
+		TargetFOV = PlayerTuning.RunningCameraFOV;
 	}
 	if (IsSliding())
 	{
-		TargetFOV = SlideCameraFOV;
+		TargetFOV = PlayerTuning.SlideCameraFOV;
 	}
 	if (IsDashing())
 	{
-		TargetFOV = DashCameraFOV;
+		TargetFOV = PlayerTuning.DashCameraFOV;
 	}
-	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, CameraFOVInterpSpeed);
+	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, PlayerTuning.CameraFOVInterpSpeed);
 	FirstPersonCameraComponent->SetFieldOfView(NewFOV);
 	UpdateWallRunCameraTilt(DeltaSeconds);
 	UpdateFirstPersonCameraRotation(DeltaSeconds);
@@ -414,16 +379,17 @@ void AGsPlayer::UpdateFirstPersonCameraRotation(float DeltaSeconds)
 	FRotator DesiredCameraWorldRotation = RawCameraWorldRotation;
 	if (AController* PlayerController = GetController())
 	{
+		const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 		const FRotator ControlRotation = PlayerController->GetControlRotation().GetNormalized();
 		const FRotator RawHeadRotationOffset = (RawCameraWorldRotation - ControlRotation).GetNormalized();
-		const float BlendAlpha = FMath::Clamp(HeadCameraRotationBlendAlpha, 0.0f, 1.0f);
+		const float BlendAlpha = FMath::Clamp(PlayerTuning.HeadCameraRotationBlendAlpha, 0.0f, 1.0f);
 		const FRotator TargetHeadRotationOffset(
 			RawHeadRotationOffset.Pitch * BlendAlpha,
 			RawHeadRotationOffset.Yaw * BlendAlpha,
 			RawHeadRotationOffset.Roll * BlendAlpha);
 
-		CurrentHeadCameraRotationOffset = HeadCameraRotationInterpSpeed > 0.0f
-			? FMath::RInterpTo(CurrentHeadCameraRotationOffset, TargetHeadRotationOffset, DeltaSeconds, HeadCameraRotationInterpSpeed).GetNormalized()
+		CurrentHeadCameraRotationOffset = PlayerTuning.HeadCameraRotationInterpSpeed > 0.0f
+			? FMath::RInterpTo(CurrentHeadCameraRotationOffset, TargetHeadRotationOffset, DeltaSeconds, PlayerTuning.HeadCameraRotationInterpSpeed).GetNormalized()
 			: TargetHeadRotationOffset.GetNormalized();
 		DesiredCameraWorldRotation = (ControlRotation + CurrentHeadCameraRotationOffset).GetNormalized();
 	}
@@ -505,6 +471,7 @@ bool AGsPlayer::IsWallRunning() const
 
 float AGsPlayer::GetLifePercent() const
 {
+	const float MaxHP = GetPlayerTuning().MaxHP;
 	return MaxHP > 0.0f ? FMath::Clamp(CurrentHP / MaxHP, 0.0f, 1.0f) : 0.0f;
 }
 
@@ -602,7 +569,7 @@ void AGsPlayer::UpdateSafeLandingTransform()
 		return;
 	}
 
-	if ((World->GetTimeSeconds() - LastFallRecoveryTime) < SafeLandingMinInterval)
+	if ((World->GetTimeSeconds() - LastFallRecoveryTime) < GetPlayerTuning().SafeLandingMinInterval)
 	{
 		return;
 	}
@@ -705,6 +672,7 @@ void AGsPlayer::Die()
 	OnDeath.Broadcast();
 	BP_OnDeath();
 
+	const float DeferredDestructionTime = GetPlayerTuning().DeferredDestructionTime;
 	if (DeferredDestructionTime <= 0.0f)
 	{
 		Destroy();
