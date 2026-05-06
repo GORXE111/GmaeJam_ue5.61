@@ -7,6 +7,7 @@
 #include "EnemyDataAsset.h"
 #include "EnemySubsystem.h"
 #include "RealmTagComponent.h"
+#include "RealmHurtSwitchComponent.h"
 #include "AIController.h"
 #include "BrainComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -31,7 +32,10 @@ AEnemyCharacter::AEnemyCharacter()
 		Move->RotationRate = FRotator(0.f, 540.f, 0.f);
 	}
 
-	RealmTag = CreateDefaultSubobject<URealmTagComponent>(TEXT("RealmTag"));
+	// 敌人统一使用 URealmHurtSwitchComponent：仅追踪表/里世界态（IsHurtable），
+	// 不调用 SetActorEnableCollision。这样表里世界敌人在任何世界都能正常移动、
+	// 都能被自身攻击 Hitbox/子弹触发，伤害是否被吃由 TakeDamage 中按 RealmType 判定。
+	RealmTag = CreateDefaultSubobject<URealmHurtSwitchComponent>(TEXT("RealmTag"));
 	Health   = CreateDefaultSubobject<UEnemyHealthComponent>(TEXT("Health"));
 
 	AIControllerClass = AAIController::StaticClass();
@@ -87,6 +91,19 @@ float AEnemyCharacter::TakeDamage(float Damage, struct FDamageEvent const& Damag
 	if (bIsDead || !Health)
 	{
 		return 0.f;
+	}
+
+	// 里世界敌人：只有在玩家位于里世界时（HurtSwitch 进入实体态）才接受伤害。
+	// 表世界敌人：始终接受伤害（IsHurtable 不参与判定）。
+	if (GetEnemyRealmType() == ERealmType::Realm)
+	{
+		if (const URealmHurtSwitchComponent* HurtSwitch = Cast<URealmHurtSwitchComponent>(RealmTag))
+		{
+			if (!HurtSwitch->IsHurtable())
+			{
+				return 0.f;
+			}
+		}
 	}
 
 	const float Applied = Health->ApplyDamage(Damage, DamageCauser);
