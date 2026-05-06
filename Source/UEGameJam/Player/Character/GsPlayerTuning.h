@@ -26,6 +26,14 @@ struct UEGAMEJAM_API FGsPlayerTuningRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Dash", meta = (ClampMin = 0, Units = "s"))
 	float DashCooldown = 0.75f;
 
+	/** 平台边缘攀爬位移持续时间，数值越大上平台过程越慢 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ledge Climb", meta = (ClampMin = 0, Units = "s"))
+	float LedgeClimbDuration = 0.18f;
+
+	/** 平台边缘攀爬结束时胶囊体底部高出平台顶面的距离，用于避免落点贴地穿插 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ledge Climb", meta = (ClampMin = 0, Units = "cm"))
+	float LedgeClimbFloorClearance = 2.0f;
+
 	/** 滑铲时使用的水平移动速度，数值越大向前滑得越快 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Slide", meta = (ClampMin = 0, Units = "cm/s"))
 	float SlideSpeed = 1200.0f;

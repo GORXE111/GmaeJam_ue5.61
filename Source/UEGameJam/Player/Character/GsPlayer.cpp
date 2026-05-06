@@ -80,11 +80,17 @@ void AGsPlayer::BeginPlay()
 	DashStartLocation = FVector::ZeroVector;
 	DashTargetLocation = FVector::ZeroVector;
 	CurrentDashElapsedTime = 0.0f;
+	LedgeClimbStartLocation = FVector::ZeroVector;
+	LedgeClimbTargetLocation = FVector::ZeroVector;
+	CurrentLedgeClimbElapsedTime = 0.0f;
+	PreLedgeClimbMovementMode = MOVE_Falling;
+	PreLedgeClimbCustomMovementMode = 0;
 	LastSafeLocation = GetActorLocation();
 	LastSafeRotation = GetActorRotation();
 	bHasSafeLocation = true;
 	LastFallRecoveryTime = -PlayerTuning.SafeLandingMinInterval;
 	LastDashTime = -PlayerTuning.DashCooldown;
+	bIsFalculaLaunching = false;
 	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
@@ -180,11 +186,18 @@ void AGsPlayer::Tick(float DeltaSeconds)
 
 	UpdateSlide(DeltaSeconds);
 	UpdateDash(DeltaSeconds);
+	UpdateLedgeClimb(DeltaSeconds);
 	UpdateWallRun(DeltaSeconds);
 	UpdateWallRunDetection();
 
-	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
+	if (bIsFalculaLaunching
+		&& (!PlayerMovementComponent || !PlayerMovementComponent->IsFalling() || PlayerMovementComponent->Velocity.Z <= 0.0f))
+	{
+		bIsFalculaLaunching = false;
+	}
+
+	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	if (PlayerMovementComponent
 		&& PlayerMovementComponent->IsFalling()
 		&& bHasSafeLocation
@@ -230,6 +243,10 @@ void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
 	if (IsDashing())
 	{
 		AbortDash();
+	}
+	if (IsLedgeClimbing())
+	{
+		AbortLedgeClimb();
 	}
 	if (IsWallRunning())
 	{
@@ -285,6 +302,7 @@ void AGsPlayer::Landed(const FHitResult& Hit)
 	}
 
 	bHasDashedSinceLanded = false;
+	bIsFalculaLaunching = false;
 	ResetWallRunDetection();
 	UpdateSafeLandingTransform();
 }
@@ -444,6 +462,11 @@ bool AGsPlayer::IsDashing() const
 	return CurrentAction == EUEGameJamPlayerAction::Dash;
 }
 
+bool AGsPlayer::IsLedgeClimbing() const
+{
+	return CurrentAction == EUEGameJamPlayerAction::LedgeClimb;
+}
+
 bool AGsPlayer::IsWallRunning() const
 {
 	return CurrentAction == EUEGameJamPlayerAction::WallRun;
@@ -578,6 +601,10 @@ void AGsPlayer::RecoverFromDeepFall()
 	{
 		AbortDash();
 	}
+	if (IsLedgeClimbing())
+	{
+		AbortLedgeClimb();
+	}
 	if (IsWallRunning())
 	{
 		StopWallRun();
@@ -588,6 +615,7 @@ void AGsPlayer::RecoverFromDeepFall()
 		FinishCharacterAction();
 	}
 	bHasDashedSinceLanded = false;
+	bIsFalculaLaunching = false;
 	ResetWallRunDetection();
 
 	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
@@ -623,6 +651,10 @@ void AGsPlayer::Die()
 	{
 		AbortDash();
 	}
+	if (IsLedgeClimbing())
+	{
+		AbortLedgeClimb();
+	}
 	if (IsWallRunning())
 	{
 		StopWallRun();
@@ -633,6 +665,7 @@ void AGsPlayer::Die()
 		FinishCharacterAction();
 	}
 	bHasDashedSinceLanded = false;
+	bIsFalculaLaunching = false;
 	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())

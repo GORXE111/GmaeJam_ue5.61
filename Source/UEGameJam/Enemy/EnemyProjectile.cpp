@@ -4,6 +4,7 @@
 
 #include "EnemyProjectile.h"
 #include "RealmTagComponent.h"
+#include "RealmRevealerComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -14,13 +15,20 @@
 
 AEnemyProjectile::AEnemyProjectile()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	CollisionComp->InitSphereRadius(8.f);
 	CollisionComp->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	// 让子弹"穿透"所有 Pawn（自身 + 其他敌人 + 玩家）：Pawn 通道改 Overlap，
+	// 这样：墙壁等 World 物体仍走 Block → OnComponentHit 触发；Pawn 走 Overlap →
+	// OnComponentBeginOverlap 触发，由我们在回调里只对带 PlayerTag 的 Actor 应用伤害，
+	// 撞到其他敌人/发射者本人直接 return → 子弹继续飞。
+	CollisionComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	CollisionComp->SetGenerateOverlapEvents(true);
 	CollisionComp->SetNotifyRigidBodyCollision(true);
 	CollisionComp->OnComponentHit.AddDynamic(this, &AEnemyProjectile::OnHit);
+	CollisionComp->OnComponentBeginOverlap.AddDynamic(this, &AEnemyProjectile::OnBeginOverlap);
 	RootComponent = CollisionComp;
 
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
@@ -40,6 +48,10 @@ AEnemyProjectile::AEnemyProjectile()
 	ProjectileMovement->bShouldBounce = false;
 
 	RealmTag = CreateDefaultSubobject<URealmTagComponent>(TEXT("RealmTag"));
+	// 关键：禁掉 RealmTag 的 Tick，避免子弹靠近玩家（进入揭示圈）时被
+	// SetActorEnableCollision(false) 关闭碰撞。子弹整个生命周期保持碰撞 ON，
+	// 这样表/里世界敌人的子弹都能在任意世界命中玩家。
+	RealmTag->PrimaryComponentTick.bCanEverTick = false;
 
 	InitialLifeSpan = 0.f; // 由 InitializeAndLaunch 或 BeginPlay 控制
 }
@@ -47,15 +59,42 @@ AEnemyProjectile::AEnemyProjectile()
 void AEnemyProjectile::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 强制开启 Actor 碰撞：URealmTagComponent::BeginPlay 会按 RealmType 设初始
+	// 碰撞（Realm=关 / Surface=开）。我们要的是"任何世界都能命中玩家"，所以
+	// 不论发起者是表还是里世界都强制开启。配合构造函数禁 Tick，整个生命周期保持开启。
+	SetActorEnableCollision(true);
+
 	if (LifeTime > 0.f)
 	{
 		SetLifeSpan(LifeTime);
 	}
+
+	PreviousLocation = GetActorLocation();
+	bHasPreviousLocation = true;
+}
+
+void AEnemyProjectile::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const FVector CurrentLocation = GetActorLocation();
+	if (bHasPreviousLocation && TryHandleRealmBoundaryBlock(PreviousLocation, CurrentLocation))
+	{
+		return;
+	}
+
+	PreviousLocation = CurrentLocation;
+	bHasPreviousLocation = true;
 }
 
 void AEnemyProjectile::InitializeAndLaunch(const FVector& Direction, float Speed, AActor* InInstigator, ERealmType InRealm)
 {
 	SetInstigator(Cast<APawn>(InInstigator));
+
+	// Pawn 通道改 Overlap 后，发射者本人不会触发 Hit，但仍会触发 BeginOverlap。
+	// 在 OnBeginOverlap 里靠 OtherActor != GetInstigator() 过滤即可，无需 IgnoreActorWhenMoving。
+
 	if (ProjectileMovement)
 	{
 		const FVector Dir = Direction.IsNearlyZero() ? FVector::ForwardVector : Direction.GetSafeNormal();
@@ -77,21 +116,140 @@ void AEnemyProjectile::InitializeAndLaunch(const FVector& Direction, float Speed
 void AEnemyProjectile::OnHit(UPrimitiveComponent* /*HitComp*/, AActor* OtherActor,
                              UPrimitiveComponent* /*OtherComp*/, FVector /*NormalImpulse*/, const FHitResult& Hit)
 {
-	if (OtherActor && OtherActor != this && OtherActor != GetInstigator())
+	if (bHasPreviousLocation && TryHandleRealmBoundaryBlock(PreviousLocation, Hit.ImpactPoint))
 	{
-		const bool bRequireTag = !PlayerTag.IsNone();
-		const bool bHasTag = bRequireTag ? OtherActor->ActorHasTag(PlayerTag) : true;
-
-		if (bHasTag)
-		{
-			AController* InstigatorCtrl = GetInstigatorController();
-			UGameplayStatics::ApplyDamage(OtherActor, Damage, InstigatorCtrl, this, DamageTypeClass);
-		}
+		return;
 	}
+
+	// Pawn 通道为 Overlap，因此 OnHit 只会在打到 World 几何体（墙、地、静态物）时触发。
+	// 这里不再处理伤害（伤害走 OnBeginOverlap），只播命中特效并销毁。
+	HandleImpactAndDestroy(Hit.ImpactPoint, Hit.ImpactNormal);
+}
+
+void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, AActor* OtherActor,
+                                      UPrimitiveComponent* /*OtherComp*/, int32 /*OtherBodyIndex*/,
+                                      bool /*bFromSweep*/, const FHitResult& SweepResult)
+{
+	// 过滤：自己 / 发射者本人 / 其它敌人（任何不带 PlayerTag 的 Pawn）一律不处理，
+	// 子弹继续飞。
+	if (!OtherActor || OtherActor == this || OtherActor == GetInstigator())
+	{
+		return;
+	}
+
+	if (bHasPreviousLocation && TryHandleRealmBoundaryBlock(PreviousLocation, GetActorLocation()))
+	{
+		return;
+	}
+
+	const bool bRequireTag = !PlayerTag.IsNone();
+	const bool bHasTag = bRequireTag ? OtherActor->ActorHasTag(PlayerTag) : true;
+	if (!bHasTag)
+	{
+		// 撞到其他敌人 / 杂物 → 穿透。
+		return;
+	}
+
+	AController* InstigatorCtrl = GetInstigatorController();
+	UGameplayStatics::ApplyDamage(OtherActor, Damage, InstigatorCtrl, this, DamageTypeClass);
 
 	if (ImpactFX)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactFX, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+		const FVector ImpactLoc = SweepResult.bBlockingHit ? FVector(SweepResult.ImpactPoint) : GetActorLocation();
+		const FRotator ImpactRot = SweepResult.bBlockingHit ? FVector(SweepResult.ImpactNormal).Rotation() : GetActorRotation();
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactFX, ImpactLoc, ImpactRot);
+	}
+
+	Destroy();
+}
+
+bool AEnemyProjectile::TryHandleRealmBoundaryBlock(const FVector& Start, const FVector& End)
+{
+	if (!URealmRevealerComponent::IsAnyActive())
+	{
+		return false;
+	}
+
+	const FVector Center = URealmRevealerComponent::GetActiveCenter();
+	const float Radius = URealmRevealerComponent::GetActiveRadius();
+	if (Radius <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const float StartDistSq = FVector::DistSquared(Start, Center);
+	const float EndDistSq = FVector::DistSquared(End, Center);
+	const bool bStartInside = StartDistSq <= FMath::Square(Radius);
+	const bool bEndInside = EndDistSq <= FMath::Square(Radius);
+
+	if (bStartInside == bEndInside)
+	{
+		return false;
+	}
+
+	FVector ImpactPoint = End;
+	FVector ImpactNormal = (End - Start).GetSafeNormal();
+	if (!FindSphereBoundaryIntersection(Start, End, Center, Radius, ImpactPoint, ImpactNormal))
+	{
+		const FVector FallbackDir = (End - Start).GetSafeNormal();
+		ImpactPoint = Start;
+		ImpactNormal = bStartInside ? FallbackDir : -FallbackDir;
+	}
+
+	HandleImpactAndDestroy(ImpactPoint, ImpactNormal);
+	return true;
+}
+
+bool AEnemyProjectile::FindSphereBoundaryIntersection(const FVector& Start, const FVector& End,
+	const FVector& Center, float Radius, FVector& OutImpactPoint, FVector& OutImpactNormal)
+{
+	const FVector Segment = End - Start;
+	const float SegmentLenSq = Segment.SizeSquared();
+	if (SegmentLenSq <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const FVector StartToCenter = Start - Center;
+	const float A = SegmentLenSq;
+	const float B = 2.0f * FVector::DotProduct(StartToCenter, Segment);
+	const float C = StartToCenter.SizeSquared() - FMath::Square(Radius);
+	const float Discriminant = (B * B) - (4.0f * A * C);
+	if (Discriminant < 0.0f)
+	{
+		return false;
+	}
+
+	const float SqrtDiscriminant = FMath::Sqrt(Discriminant);
+	const float Denominator = 2.0f * A;
+	const float T0 = (-B - SqrtDiscriminant) / Denominator;
+	const float T1 = (-B + SqrtDiscriminant) / Denominator;
+
+	float HitT = TNumericLimits<float>::Max();
+	if (T0 >= 0.0f && T0 <= 1.0f)
+	{
+		HitT = T0;
+	}
+	if (T1 >= 0.0f && T1 <= 1.0f)
+	{
+		HitT = FMath::Min(HitT, T1);
+	}
+	if (!FMath::IsFinite(HitT) || HitT == TNumericLimits<float>::Max())
+	{
+		return false;
+	}
+
+	OutImpactPoint = Start + (Segment * HitT);
+	OutImpactNormal = (OutImpactPoint - Center).GetSafeNormal();
+	return !OutImpactNormal.IsNearlyZero();
+}
+
+void AEnemyProjectile::HandleImpactAndDestroy(const FVector& ImpactPoint, const FVector& ImpactNormal)
+{
+	if (ImpactFX)
+	{
+		const FVector SafeNormal = ImpactNormal.IsNearlyZero() ? FVector::UpVector : ImpactNormal;
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactFX, ImpactPoint, SafeNormal.Rotation());
 	}
 
 	Destroy();
