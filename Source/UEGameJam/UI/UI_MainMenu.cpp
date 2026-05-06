@@ -5,6 +5,9 @@
 
 #include "UI_SettingsMenu.h"
 #include "Components/Button.h"
+#include "Components/ContentWidget.h"
+#include "Components/PanelWidget.h"
+#include "Components/TextBlock.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
