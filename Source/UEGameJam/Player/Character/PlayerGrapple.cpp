@@ -69,6 +69,7 @@ void AGsPlayer::DoFalcula()
 	const float VerticalSpeed = Gravity * TimeToApex;
 	const FVector LaunchVelocity = HorizontalVelocity + (FVector::UpVector * VerticalSpeed);
 	LaunchCharacter(LaunchVelocity, true, true);
+	bIsFalculaLaunching = true;
 
 	if (GEngine)
 	{

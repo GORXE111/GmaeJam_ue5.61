@@ -17,7 +17,7 @@ void AGsPlayer::DoMove(float Right, float Forward)
 	const FVector2D MoveVector(Right, Forward);
 	CachedMoveInput = MoveVector.SizeSquared() > FMath::Square(SlideInputDeadZone) ? MoveVector : FVector2D::ZeroVector;
 
-	if (IsSliding() || IsDashing() || IsWallRunning())
+	if (IsSliding() || IsDashing() || IsLedgeClimbing() || IsWallRunning())
 	{
 		return;
 	}
@@ -36,7 +36,7 @@ void AGsPlayer::DoJumpStart()
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
 	const bool bWasMovingOnGround = PlayerMovementComponent && PlayerMovementComponent->IsMovingOnGround();
 
-	if (IsDashing())
+	if (IsDashing() || IsLedgeClimbing())
 	{
 		return;
 	}
