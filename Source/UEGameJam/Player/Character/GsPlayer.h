@@ -13,6 +13,7 @@ class UInputComponent;
 class USkeletalMeshComponent;
 class UGsPlayerResourceDataAsset;
 class AGsGrapplePoint;
+class AGsLedgeClimbBox;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUEGameJamPlayerDamagedDelegate, float, LifePercent);
@@ -26,7 +27,8 @@ enum class EUEGameJamPlayerAction : uint8
 	Skill,
 	Dash,
 	Slide,
-	WallRun
+	WallRun,
+	LedgeClimb
 };
 
 /**
@@ -162,6 +164,24 @@ protected:
 	/** 本次腾空是否已经成功触发过墙跑提示 */
 	bool bHasTriggeredWallRunThisJump = false;
 
+	/** 是否处于钩索抛起窗口，用于避免把钩索状态识别为空中空闲 */
+	bool bIsFalculaLaunching = false;
+
+	/** 平台边缘攀爬开始时的位置 */
+	FVector LedgeClimbStartLocation = FVector::ZeroVector;
+
+	/** 平台边缘攀爬目标位置 */
+	FVector LedgeClimbTargetLocation = FVector::ZeroVector;
+
+	/** 当前平台边缘攀爬已推进的时间 */
+	float CurrentLedgeClimbElapsedTime = 0.0f;
+
+	/** 平台边缘攀爬前缓存的移动模式，用于碰撞中断后恢复移动组件 */
+	EMovementMode PreLedgeClimbMovementMode = MOVE_Falling;
+
+	/** 平台边缘攀爬前缓存的自定义移动模式 */
+	uint8 PreLedgeClimbCustomMovementMode = 0;
+
 	/** 墙跑开始时锁定的沿墙移动方向 */
 	FVector WallRunDirection = FVector::ZeroVector;
 
@@ -213,6 +233,7 @@ protected:
 	virtual void EndPlay(EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void Landed(const FHitResult& Hit) override;
+	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 
 	/** 从 DataTable 应用玩家手感数值，未配置时使用 C++ 默认数值 */
 	void ApplyPlayerTuningFromDataTable();
@@ -271,6 +292,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsDashing() const;
+
+	UFUNCTION(BlueprintPure, Category="Action")
+	bool IsLedgeClimbing() const;
 
 	UFUNCTION(BlueprintPure, Category="Action")
 	bool IsWallRunning() const;
@@ -364,6 +388,24 @@ protected:
 
 	/** 设置墙跑相机倾斜的目标 Roll */
 	void SetWallRunCameraTiltTarget(float InTargetRoll);
+
+	/** 当前状态是否允许触发平台边缘攀爬 */
+	bool CanTriggerLedgeClimb() const;
+
+	/** 尝试开始平台边缘攀爬 */
+	bool StartLedgeClimb(const AGsLedgeClimbBox& LedgeClimbBox);
+
+	/** 每帧推进平台边缘攀爬位移 */
+	void UpdateLedgeClimb(float DeltaSeconds);
+
+	/** 正常结束平台边缘攀爬并落到地面移动状态 */
+	void FinishLedgeClimb();
+
+	/** 中断平台边缘攀爬并恢复进入前的移动状态 */
+	void AbortLedgeClimb();
+
+	/** 清理平台边缘攀爬运行时状态缓存 */
+	void ClearLedgeClimbState();
 
 	/** 清理冲刺运行时状态缓存 */
 	void ClearDashState();
