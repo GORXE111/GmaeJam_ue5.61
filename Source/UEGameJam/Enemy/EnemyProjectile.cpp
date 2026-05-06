@@ -4,6 +4,7 @@
 
 #include "EnemyProjectile.h"
 #include "RealmTagComponent.h"
+#include "RealmRevealerComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -14,7 +15,7 @@
 
 AEnemyProjectile::AEnemyProjectile()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	CollisionComp->InitSphereRadius(8.f);
@@ -68,6 +69,23 @@ void AEnemyProjectile::BeginPlay()
 	{
 		SetLifeSpan(LifeTime);
 	}
+
+	PreviousLocation = GetActorLocation();
+	bHasPreviousLocation = true;
+}
+
+void AEnemyProjectile::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const FVector CurrentLocation = GetActorLocation();
+	if (bHasPreviousLocation && TryHandleRealmBoundaryBlock(PreviousLocation, CurrentLocation))
+	{
+		return;
+	}
+
+	PreviousLocation = CurrentLocation;
+	bHasPreviousLocation = true;
 }
 
 void AEnemyProjectile::InitializeAndLaunch(const FVector& Direction, float Speed, AActor* InInstigator, ERealmType InRealm)
@@ -98,14 +116,14 @@ void AEnemyProjectile::InitializeAndLaunch(const FVector& Direction, float Speed
 void AEnemyProjectile::OnHit(UPrimitiveComponent* /*HitComp*/, AActor* OtherActor,
                              UPrimitiveComponent* /*OtherComp*/, FVector /*NormalImpulse*/, const FHitResult& Hit)
 {
-	// Pawn 通道为 Overlap，因此 OnHit 只会在打到 World 几何体（墙、地、静态物）时触发。
-	// 这里不再处理伤害（伤害走 OnBeginOverlap），只播命中特效并销毁。
-	if (ImpactFX)
+	if (bHasPreviousLocation && TryHandleRealmBoundaryBlock(PreviousLocation, Hit.ImpactPoint))
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactFX, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+		return;
 	}
 
-	Destroy();
+	// Pawn 通道为 Overlap，因此 OnHit 只会在打到 World 几何体（墙、地、静态物）时触发。
+	// 这里不再处理伤害（伤害走 OnBeginOverlap），只播命中特效并销毁。
+	HandleImpactAndDestroy(Hit.ImpactPoint, Hit.ImpactNormal);
 }
 
 void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, AActor* OtherActor,
@@ -115,6 +133,11 @@ void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, A
 	// 过滤：自己 / 发射者本人 / 其它敌人（任何不带 PlayerTag 的 Pawn）一律不处理，
 	// 子弹继续飞。
 	if (!OtherActor || OtherActor == this || OtherActor == GetInstigator())
+	{
+		return;
+	}
+
+	if (bHasPreviousLocation && TryHandleRealmBoundaryBlock(PreviousLocation, GetActorLocation()))
 	{
 		return;
 	}
@@ -135,6 +158,98 @@ void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, A
 		const FVector ImpactLoc = SweepResult.bBlockingHit ? FVector(SweepResult.ImpactPoint) : GetActorLocation();
 		const FRotator ImpactRot = SweepResult.bBlockingHit ? FVector(SweepResult.ImpactNormal).Rotation() : GetActorRotation();
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactFX, ImpactLoc, ImpactRot);
+	}
+
+	Destroy();
+}
+
+bool AEnemyProjectile::TryHandleRealmBoundaryBlock(const FVector& Start, const FVector& End)
+{
+	if (!URealmRevealerComponent::IsAnyActive())
+	{
+		return false;
+	}
+
+	const FVector Center = URealmRevealerComponent::GetActiveCenter();
+	const float Radius = URealmRevealerComponent::GetActiveRadius();
+	if (Radius <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const float StartDistSq = FVector::DistSquared(Start, Center);
+	const float EndDistSq = FVector::DistSquared(End, Center);
+	const bool bStartInside = StartDistSq <= FMath::Square(Radius);
+	const bool bEndInside = EndDistSq <= FMath::Square(Radius);
+
+	if (bStartInside == bEndInside)
+	{
+		return false;
+	}
+
+	FVector ImpactPoint = End;
+	FVector ImpactNormal = (End - Start).GetSafeNormal();
+	if (!FindSphereBoundaryIntersection(Start, End, Center, Radius, ImpactPoint, ImpactNormal))
+	{
+		const FVector FallbackDir = (End - Start).GetSafeNormal();
+		ImpactPoint = Start;
+		ImpactNormal = bStartInside ? FallbackDir : -FallbackDir;
+	}
+
+	HandleImpactAndDestroy(ImpactPoint, ImpactNormal);
+	return true;
+}
+
+bool AEnemyProjectile::FindSphereBoundaryIntersection(const FVector& Start, const FVector& End,
+	const FVector& Center, float Radius, FVector& OutImpactPoint, FVector& OutImpactNormal)
+{
+	const FVector Segment = End - Start;
+	const float SegmentLenSq = Segment.SizeSquared();
+	if (SegmentLenSq <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+
+	const FVector StartToCenter = Start - Center;
+	const float A = SegmentLenSq;
+	const float B = 2.0f * FVector::DotProduct(StartToCenter, Segment);
+	const float C = StartToCenter.SizeSquared() - FMath::Square(Radius);
+	const float Discriminant = (B * B) - (4.0f * A * C);
+	if (Discriminant < 0.0f)
+	{
+		return false;
+	}
+
+	const float SqrtDiscriminant = FMath::Sqrt(Discriminant);
+	const float Denominator = 2.0f * A;
+	const float T0 = (-B - SqrtDiscriminant) / Denominator;
+	const float T1 = (-B + SqrtDiscriminant) / Denominator;
+
+	float HitT = TNumericLimits<float>::Max();
+	if (T0 >= 0.0f && T0 <= 1.0f)
+	{
+		HitT = T0;
+	}
+	if (T1 >= 0.0f && T1 <= 1.0f)
+	{
+		HitT = FMath::Min(HitT, T1);
+	}
+	if (!FMath::IsFinite(HitT) || HitT == TNumericLimits<float>::Max())
+	{
+		return false;
+	}
+
+	OutImpactPoint = Start + (Segment * HitT);
+	OutImpactNormal = (OutImpactPoint - Center).GetSafeNormal();
+	return !OutImpactNormal.IsNearlyZero();
+}
+
+void AEnemyProjectile::HandleImpactAndDestroy(const FVector& ImpactPoint, const FVector& ImpactNormal)
+{
+	if (ImpactFX)
+	{
+		const FVector SafeNormal = ImpactNormal.IsNearlyZero() ? FVector::UpVector : ImpactNormal;
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ImpactFX, ImpactPoint, SafeNormal.Rotation());
 	}
 
 	Destroy();
