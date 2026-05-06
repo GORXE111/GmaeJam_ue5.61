@@ -61,6 +61,11 @@ AActor* AEnemyAIController::RefreshPlayer()
 	return FindPlayerByTag();
 }
 
+void AEnemyAIController::ClearCachedPlayer()
+{
+	CachedPlayer.Reset();
+}
+
 AActor* AEnemyAIController::FindPlayerByTag()
 {
 	if (AActor* Existing = CachedPlayer.Get())

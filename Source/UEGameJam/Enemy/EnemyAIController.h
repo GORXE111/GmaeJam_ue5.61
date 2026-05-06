@@ -37,6 +37,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Enemy|AI")
 	AActor* FindPlayerByTag();
 
+	/** 清空当前缓存的玩家目标 */
+	void ClearCachedPlayer();
+
 	/** 读取 StateTree 组件 */
 	UFUNCTION(BlueprintPure, Category="Enemy|AI")
 	UStateTreeAIComponent* GetStateTreeAI() const { return StateTreeAI; }
