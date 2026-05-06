@@ -7,6 +7,7 @@
 #include "UI_MainMenu.generated.h"
 
 class UButton;
+class UWidget;
 class UUI_SettingsMenu;
 
 /**
