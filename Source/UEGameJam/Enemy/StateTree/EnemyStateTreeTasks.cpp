@@ -74,6 +74,7 @@ EStateTreeRunStatus FEnemyAcquireTargetTask::Tick(FStateTreeExecutionContext& Co
 	{
 		Data.bFound = false;
 		Data.TargetActor = nullptr;
+		Data.Controller->ClearCachedPlayer();
 		if (bWasFound)
 		{
 			PrintEnemyCommonDebug(TEXT("AcquireTarget: LOST (no player pawn)"), FColor::Silver);
@@ -86,6 +87,7 @@ EStateTreeRunStatus FEnemyAcquireTargetTask::Tick(FStateTreeExecutionContext& Co
 	{
 		Data.bFound = false;
 		Data.TargetActor = nullptr;
+		Data.Controller->ClearCachedPlayer();
 		if (bWasFound)
 		{
 			PrintEnemyCommonDebug(TEXT("AcquireTarget: LOST (out of radius)"), FColor::Silver);
@@ -108,6 +110,7 @@ EStateTreeRunStatus FEnemyAcquireTargetTask::Tick(FStateTreeExecutionContext& Co
 		{
 			Data.bFound = false;
 			Data.TargetActor = nullptr;
+			Data.Controller->ClearCachedPlayer();
 			return EStateTreeRunStatus::Running;
 		}
 	}
