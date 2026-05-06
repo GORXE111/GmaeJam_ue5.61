@@ -1,8 +1,8 @@
 // ===================================================
 // 文件：EnemyProjectile.h
 // 说明：敌人投射物。带碰撞体的飞行子弹，命中带 PlayerTag 的 Actor 时
-//       调用 UGameplayStatics::ApplyDamage。支持继承发射者的 RealmType，
-//       这样子弹会跟随 Realm 系统自动处理跨世界碰撞。
+//       调用 UGameplayStatics::ApplyDamage。子弹本身不跟随 RealmTag 的
+//       碰撞开关，但会在飞行中检测揭示球边界，禁止跨越表/里世界分界。
 // ===================================================
 
 #pragma once
@@ -34,6 +34,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<USphereComponent> CollisionComp;
@@ -77,4 +78,12 @@ protected:
 	void OnBeginOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	                    UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
 	                    bool bFromSweep, const FHitResult& SweepResult);
+
+	bool TryHandleRealmBoundaryBlock(const FVector& Start, const FVector& End);
+	static bool FindSphereBoundaryIntersection(const FVector& Start, const FVector& End,
+		const FVector& Center, float Radius, FVector& OutImpactPoint, FVector& OutImpactNormal);
+	void HandleImpactAndDestroy(const FVector& ImpactPoint, const FVector& ImpactNormal);
+
+	FVector PreviousLocation = FVector::ZeroVector;
+	bool bHasPreviousLocation = false;
 };
