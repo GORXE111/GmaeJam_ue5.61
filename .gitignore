@@ -1,5 +1,11 @@
 # UE 编译/中间产物
-# Binaries/ 不忽略，供美术/策划直接打开项目
+Binaries/*
+!Binaries/Win64/
+Binaries/Win64/*
+!Binaries/Win64/UEGameJamEditor.target
+!Binaries/Win64/UnrealEditor.modules
+!Binaries/Win64/UnrealEditor-UEGameJam.dll
+!Binaries/Win64/UnrealEditor-UEGameJam.pdb
 Build/
 DerivedDataCache/
 Intermediate/
@@ -21,6 +27,7 @@ GenerateBat.bat
 
 # Rider
 Plugins/Developer/RiderLink/
+UEGameJam.uproject.DotSettings.user
 
 # Codex
 Source/AGENTS.md
