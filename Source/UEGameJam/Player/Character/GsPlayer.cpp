@@ -12,6 +12,7 @@
 #include "TimerManager.h"
 #include "UEGameJam.h"
 #include "Player/Character/GsPlayerResourceDataAsset.h"
+#include "Player/Game/GsLevelStateGameState.h"
 #include "RealmRevealerComponent.h"
 
 AGsPlayer::AGsPlayer()
@@ -96,6 +97,10 @@ void AGsPlayer::BeginPlay()
 	if (UWorld* World = GetWorld())
 	{
 		LastDashTime = World->GetTimeSeconds() - PlayerTuning.DashCooldown;
+		if (AGsLevelStateGameState* LevelState = World->GetGameState<AGsLevelStateGameState>())
+		{
+			LevelState->EnsureFallbackRespawnTransform(GetActorTransform());
+		}
 	}
 
 	if (FirstPersonCameraComponent)
@@ -262,7 +267,7 @@ void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
 	{
 		World->GetTimerManager().ClearTimer(ActionTimer);
 		World->GetTimerManager().ClearTimer(MeleeHitTimer);
-		World->GetTimerManager().ClearTimer(DeferredDestroyTimer);
+		World->GetTimerManager().ClearTimer(RespawnTimer);
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -637,68 +642,3 @@ void AGsPlayer::RecoverFromDeepFall()
 	bIsRecoveringFromFall = false;
 }
 
-void AGsPlayer::Die()
-{
-	if (bIsDead)
-	{
-		return;
-	}
-
-	bIsDead = true;
-
-	StopSlide(true);
-	if (IsDashing())
-	{
-		AbortDash();
-	}
-	if (IsLedgeClimbing())
-	{
-		AbortLedgeClimb();
-	}
-	if (IsWallRunning())
-	{
-		StopWallRun();
-	}
-	else
-	{
-		ClearDashState();
-		FinishCharacterAction();
-	}
-	bHasDashedSinceLanded = false;
-	bIsFalculaLaunching = false;
-	ResetWallRunDetection();
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(MeleeHitTimer);
-	}
-
-	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
-	{
-		PlayerMovementComponent->StopMovementImmediately();
-		PlayerMovementComponent->StopActiveMovement();
-		PlayerMovementComponent->DisableMovement();
-	}
-
-	DisableInput(Cast<APlayerController>(GetController()));
-	OnDamaged.Broadcast(0.0f);
-	OnDeath.Broadcast();
-	BP_OnDeath();
-
-	const float DeferredDestructionTime = GetPlayerTuning().DeferredDestructionTime;
-	if (DeferredDestructionTime <= 0.0f)
-	{
-		Destroy();
-		return;
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(DeferredDestroyTimer, this, &AGsPlayer::OnDeferredDestroy, DeferredDestructionTime, false);
-	}
-}
-
-void AGsPlayer::OnDeferredDestroy()
-{
-	Destroy();
-}

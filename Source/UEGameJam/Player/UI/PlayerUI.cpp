@@ -9,6 +9,7 @@ void UPlayerUI::BindPlayer(AGsPlayer* InPlayer)
 	if (BoundPlayer)
 	{
 		BoundPlayer->OnDeath.RemoveDynamic(this, &UPlayerUI::HandlePlayerDeath);
+		BoundPlayer->OnRespawn.RemoveDynamic(this, &UPlayerUI::HandlePlayerRespawn);
 	}
 
 	BoundPlayer = InPlayer;
@@ -20,6 +21,7 @@ void UPlayerUI::BindPlayer(AGsPlayer* InPlayer)
 	}
 
 	BoundPlayer->OnDeath.AddDynamic(this, &UPlayerUI::HandlePlayerDeath);
+	BoundPlayer->OnRespawn.AddDynamic(this, &UPlayerUI::HandlePlayerRespawn);
 	if (BoundPlayer->IsDead())
 	{
 		HandlePlayerDeath();
@@ -31,6 +33,7 @@ void UPlayerUI::NativeDestruct()
 	if (BoundPlayer)
 	{
 		BoundPlayer->OnDeath.RemoveDynamic(this, &UPlayerUI::HandlePlayerDeath);
+		BoundPlayer->OnRespawn.RemoveDynamic(this, &UPlayerUI::HandlePlayerRespawn);
 		BoundPlayer = nullptr;
 	}
 
@@ -40,6 +43,11 @@ void UPlayerUI::NativeDestruct()
 void UPlayerUI::HandlePlayerDeath()
 {
 	SetDieTextVisible(true);
+}
+
+void UPlayerUI::HandlePlayerRespawn()
+{
+	SetDieTextVisible(false);
 }
 
 void UPlayerUI::SetDieTextVisible(bool bVisible)

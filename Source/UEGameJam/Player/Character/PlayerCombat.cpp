@@ -188,7 +188,7 @@ void AGsPlayer::PerformMeleeHit()
 		if (GEngine)
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
-			FString::Printf(TEXT("击中=========%s"), *HitActor->GetName()));
+			FString::Printf(TEXT("击中=======%s"), *HitActor->GetName()));
 		}
 		UGameplayStatics::ApplyDamage(HitActor, MeleeDamage, GetController(), this, UDamageType::StaticClass());
 	}

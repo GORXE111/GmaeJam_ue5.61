@@ -18,6 +18,7 @@ struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUEGameJamPlayerDamagedDelegate, float, LifePercent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FUEGameJamPlayerDeathDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FUEGameJamPlayerRespawnDelegate);
 
 UENUM(BlueprintType)
 enum class EUEGameJamPlayerAction : uint8
@@ -93,8 +94,8 @@ protected:
 	/** 近战命中计时器 */
 	FTimerHandle MeleeHitTimer;
 
-	/** 死亡后销毁计时器 */
-	FTimerHandle DeferredDestroyTimer;
+	/** 死亡后复活计时器 */
+	FTimerHandle RespawnTimer;
 
 	/** 起跳后延迟开启墙跑检测的计时器 */
 	FTimerHandle WallRunDetectionDelayTimer;
@@ -225,6 +226,10 @@ public:
 	/** 玩家死亡委托 */
 	UPROPERTY(BlueprintAssignable, Category="Health")
 	FUEGameJamPlayerDeathDelegate OnDeath;
+
+	/** 玩家复活委托 */
+	UPROPERTY(BlueprintAssignable, Category="Health")
+	FUEGameJamPlayerRespawnDelegate OnRespawn;
 
 public:
 
@@ -441,8 +446,14 @@ protected:
 	/** 角色死亡时的统一处理 */
 	void Die();
 
-	/** 死亡后延时销毁回调 */
-	void OnDeferredDestroy();
+	/** 死亡后延时复活回调 */
+	void OnRespawnTimerElapsed();
+
+	/** 从当前关卡复活状态中读取位置并复活角色 */
+	void RespawnFromCheckpoint();
+
+	/** 重置死亡、移动和动作状态，并传送到复活位置 */
+	void ResetForRespawn(const FTransform& RespawnTransform);
 
 	/** 蓝图技能输入回调 */
 	UFUNCTION(BlueprintImplementableEvent, Category="Player Character", meta = (DisplayName = "On Skill Input"))

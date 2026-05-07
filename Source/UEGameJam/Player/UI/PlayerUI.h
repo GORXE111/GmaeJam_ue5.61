@@ -34,5 +34,8 @@ private:
 	UFUNCTION()
 	void HandlePlayerDeath();
 
+	UFUNCTION()
+	void HandlePlayerRespawn();
+
 	void SetDieTextVisible(bool bVisible);
 };
