@@ -75,6 +75,10 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Health", meta = (AllowPrivateAccess = "true"))
 	float CurrentHP = 0.0f;
 
+	/** 调试用无敌开关，开启后玩家不会受到伤害 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug", meta = (AllowPrivateAccess = "true"))
+	bool bDebugInvincible = false;
+
 	/** 当前角色动作，用于阻止互斥动作同时触发 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Action", meta = (AllowPrivateAccess = "true"))
 	EUEGameJamPlayerAction CurrentAction = EUEGameJamPlayerAction::None;

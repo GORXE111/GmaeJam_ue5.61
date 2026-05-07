@@ -325,7 +325,7 @@ float AGsPlayer::TakeDamage(float Damage, const FDamageEvent& DamageEvent, ACont
 	(void)EventInstigator;
 	(void)DamageCauser;
 
-	if (bIsDead || Damage <= 0.0f)
+	if (bIsDead || bDebugInvincible || Damage <= 0.0f)
 	{
 		return 0.0f;
 	}
