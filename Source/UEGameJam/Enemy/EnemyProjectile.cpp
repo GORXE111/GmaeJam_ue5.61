@@ -4,7 +4,7 @@
 
 #include "EnemyProjectile.h"
 #include "RealmTagComponent.h"
-#include "RealmRevealerComponent.h"
+#include "Player/Skill/GsSkillBigBall.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -72,15 +72,6 @@ void AEnemyProjectile::BeginPlay()
 
 	PreviousLocation = GetActorLocation();
 	bHasPreviousLocation = true;
-
-	// 同步缓存初始 Realm 状态，让首个 Tick / 首次 OnHit 就能按"上一帧对比当前帧"的
-	// 方式做跨界判定。
-	bHadPreviousRealmActive = URealmRevealerComponent::IsAnyActive();
-	if (bHadPreviousRealmActive)
-	{
-		PreviousRealmCenter = URealmRevealerComponent::GetActiveCenter();
-		PreviousRealmRadius = URealmRevealerComponent::GetActiveRadius();
-	}
 }
 
 void AEnemyProjectile::Tick(float DeltaSeconds)
@@ -95,14 +86,6 @@ void AEnemyProjectile::Tick(float DeltaSeconds)
 
 	PreviousLocation = CurrentLocation;
 	bHasPreviousLocation = true;
-
-	// 缓存当前帧的 Realm 状态，供下一帧的 Start 归属判定使用。
-	bHadPreviousRealmActive = URealmRevealerComponent::IsAnyActive();
-	if (bHadPreviousRealmActive)
-	{
-		PreviousRealmCenter = URealmRevealerComponent::GetActiveCenter();
-		PreviousRealmRadius = URealmRevealerComponent::GetActiveRadius();
-	}
 }
 
 void AEnemyProjectile::InitializeAndLaunch(const FVector& Direction, float Speed, AActor* InInstigator, ERealmType InRealm)
@@ -180,45 +163,47 @@ void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, A
 	Destroy();
 }
 
+bool AEnemyProjectile::GetActiveBallBoundary(FVector& OutCenter, float& OutRadius)
+{
+	AGsSkillBigBall* Ball = AGsSkillBigBall::GetActiveInstance();
+	if (!IsValid(Ball))
+	{
+		return false;
+	}
+	const float MaxR = Ball->GetMaxRevealRadius();
+	if (MaxR <= KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+	OutCenter = Ball->GetActorLocation();
+	OutRadius = MaxR;
+	return true;
+}
+
 bool AEnemyProjectile::TryHandleRealmBoundaryBlock(const FVector& Start, const FVector& End)
 {
-	const bool bCurActive = URealmRevealerComponent::IsAnyActive();
-
-	// 必须两帧都有活动揭示球才能做跨界判定。
-	// - 两帧都无：根本没有边界。
-	// - 刚激活（上一帧无，这一帧有）：把子弹当前位置视作"球刚罩住它时的基线"，
-	//   不当作跨界事件（等下一帧开始对比）。
-	// - 刚失活（上一帧有，这一帧无）：球已消失，没有边界可拦。
-	if (!bCurActive || !bHadPreviousRealmActive)
+	FVector Center;
+	float Radius;
+	if (!GetActiveBallBoundary(Center, Radius))
 	{
 		return false;
 	}
 
-	const FVector CurCenter = URealmRevealerComponent::GetActiveCenter();
-	const float CurRadius = URealmRevealerComponent::GetActiveRadius();
-	if (CurRadius <= KINDA_SMALL_NUMBER || PreviousRealmRadius <= KINDA_SMALL_NUMBER)
-	{
-		return false;
-	}
-
-	// 关键修复：Start 的内外归属用上一帧的球（PreviousRealmCenter/Radius），
-	// End 的归属用当前帧的球。球在 Growing/Shrinking 时半径每帧在变，若统一用
-	// 当前半径去判 Start，会把历史状态错误地按当前半径重写，导致跨界事件被吞。
-	const float StartDistSq = FVector::DistSquared(Start, PreviousRealmCenter);
-	const float EndDistSq = FVector::DistSquared(End, CurCenter);
-	const bool bStartInside = StartDistSq <= FMath::Square(PreviousRealmRadius);
-	const bool bEndInside = EndDistSq <= FMath::Square(CurRadius);
+	// 策略：只要蓝球存在，边界就固定为其设计最大半径（BaseRevealRadius），
+	// 彻底忽略 Growing/Shrinking 动画期的半径抖动。这样 Start/End 两端用同一个
+	// 稳定半径做内外判定，不会出现动画过程中跨界事件被吞的情况。
+	const float RadSq = FMath::Square(Radius);
+	const bool bStartInside = FVector::DistSquared(Start, Center) <= RadSq;
+	const bool bEndInside = FVector::DistSquared(End, Center) <= RadSq;
 
 	if (bStartInside == bEndInside)
 	{
 		return false;
 	}
 
-	// 求交点时用当前球面。严格讲应当沿 Start→End 插值球心/半径再求交，但对"拦截"
-	// 决策已经靠上面 inside 比对拿对了；交点只影响 ImpactFX 位置，用当前球面足够近似。
 	FVector ImpactPoint = End;
 	FVector ImpactNormal = (End - Start).GetSafeNormal();
-	if (!FindSphereBoundaryIntersection(Start, End, CurCenter, CurRadius, ImpactPoint, ImpactNormal))
+	if (!FindSphereBoundaryIntersection(Start, End, Center, Radius, ImpactPoint, ImpactNormal))
 	{
 		const FVector FallbackDir = (End - Start).GetSafeNormal();
 		ImpactPoint = Start;

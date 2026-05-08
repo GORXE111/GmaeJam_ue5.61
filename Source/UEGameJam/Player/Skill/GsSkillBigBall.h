@@ -72,6 +72,15 @@ protected:
 public:
 	AGsSkillBigBall();
 
+	/** 球完全长大时的揭示半径（== BeginPlay 捕获的 RealmRevealerComponent 蓝图默认值）。
+	 *  外部（例如敌人子弹的跨界拦截）用这个值当作"稳定边界"，忽略 Growing/Shrinking
+	 *  动画期的半径抖动。 */
+	float GetMaxRevealRadius() const { return BaseRevealRadius; }
+
+	/** 当前场上活跃的大球（同一时刻最多一只，由 AGsSkillBall::SetActiveSkill 约束）。
+	 *  BeginPlay 时登记，EndPlay/Destroy 时清空。没有时返回 nullptr。 */
+	static AGsSkillBigBall* GetActiveInstance() { return ActiveInstance.Get(); }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -79,4 +88,7 @@ protected:
 
 	/** 进入下一阶段，重置计时 */
 	void EnterPhase(EPhase NewPhase);
+
+private:
+	static TWeakObjectPtr<AGsSkillBigBall> ActiveInstance;
 };
