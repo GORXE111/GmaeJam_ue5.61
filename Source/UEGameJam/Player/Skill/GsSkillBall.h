@@ -7,6 +7,7 @@
 #include "GsSkillBall.generated.h"
 
 class USphereComponent;
+class UPrimitiveComponent;
 class AGsSkillBigBall;
 
 /**
@@ -17,7 +18,7 @@ class UEGAMEJAM_API AGsSkillBall : public AActor
 {
 	GENERATED_BODY()
 
-	/** 技能球的碰撞体，用于阻挡移动并停在命中位置 */
+	/** 技能球的碰撞体，用于重叠触发命中 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> CollisionComponent;
 
@@ -78,6 +79,9 @@ protected:
 
 	/** 应用飞行小球的碰撞与视觉大小 */
 	void ApplyFlightBallSettings();
+
+	UFUNCTION()
+	void OnCollisionComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	/** 处理小球命中，生成大球并销毁自己 */
 	void HandleImpact(const FVector& ImpactLocation);

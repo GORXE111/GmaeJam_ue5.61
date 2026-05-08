@@ -3,6 +3,7 @@
 #include "Player/Skill/GsSkillBall.h"
 
 #include "Components/SphereComponent.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Player/Skill/GsSkillBigBall.h"
 
@@ -34,8 +35,10 @@ AGsSkillBall::AGsSkillBall()
 	RootComponent = CollisionComponent;
 
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	CollisionComponent->SetCollisionResponseToAllChannels(ECR_Block);
+	CollisionComponent->SetGenerateOverlapEvents(true);
+	CollisionComponent->SetCollisionResponseToAllChannels(ECR_Overlap);
 	CollisionComponent->CanCharacterStepUpOn = ECanBeCharacterBase::ECB_No;
+	CollisionComponent->OnComponentBeginOverlap.AddDynamic(this, &AGsSkillBall::OnCollisionComponentBeginOverlap);
 
 	ImpactBallClass = AGsSkillBigBall::StaticClass();
 }
@@ -80,7 +83,6 @@ void AGsSkillBall::Tick(float DeltaSeconds)
 	const FVector ToTarget = TargetLocation - CurrentLocation;
 	if (ToTarget.SizeSquared() <= KINDA_SMALL_NUMBER)
 	{
-		HandleImpact(CurrentLocation);
 		return;
 	}
 
@@ -91,14 +93,7 @@ void AGsSkillBall::Tick(float DeltaSeconds)
 		? TargetLocation
 		: CurrentLocation + (MoveDirection * MoveDistance);
 
-	FHitResult SweepHit;
-	SetActorLocation(DesiredLocation, true, &SweepHit, ETeleportType::None);
-
-	if (SweepHit.bBlockingHit || bReachTargetThisFrame)
-	{
-		const FVector ImpactLocation = SweepHit.bBlockingHit ? SweepHit.ImpactPoint : DesiredLocation;
-		HandleImpact(ImpactLocation);
-	}
+	SetActorLocation(DesiredLocation, true);
 }
 
 void AGsSkillBall::ApplyFlightBallSettings()
@@ -109,6 +104,21 @@ void AGsSkillBall::ApplyFlightBallSettings()
 	}
 
 	SetActorScale3D(FlightActorScale);
+}
+
+void AGsSkillBall::OnCollisionComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (bStopped || !OtherActor || OtherActor == this || OtherActor == GetOwner())
+	{
+		return;
+	}
+
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, FString::Printf(TEXT("SkillBall overlap: %s"), *OtherActor->GetName()));
+	}
+
+	HandleImpact(GetActorLocation());
 }
 
 void AGsSkillBall::HandleImpact(const FVector& ImpactLocation)
