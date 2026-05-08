@@ -72,6 +72,15 @@ void AEnemyProjectile::BeginPlay()
 
 	PreviousLocation = GetActorLocation();
 	bHasPreviousLocation = true;
+
+	// 同步缓存初始 Realm 状态，让首个 Tick / 首次 OnHit 就能按"上一帧对比当前帧"的
+	// 方式做跨界判定。
+	bHadPreviousRealmActive = URealmRevealerComponent::IsAnyActive();
+	if (bHadPreviousRealmActive)
+	{
+		PreviousRealmCenter = URealmRevealerComponent::GetActiveCenter();
+		PreviousRealmRadius = URealmRevealerComponent::GetActiveRadius();
+	}
 }
 
 void AEnemyProjectile::Tick(float DeltaSeconds)
@@ -86,6 +95,14 @@ void AEnemyProjectile::Tick(float DeltaSeconds)
 
 	PreviousLocation = CurrentLocation;
 	bHasPreviousLocation = true;
+
+	// 缓存当前帧的 Realm 状态，供下一帧的 Start 归属判定使用。
+	bHadPreviousRealmActive = URealmRevealerComponent::IsAnyActive();
+	if (bHadPreviousRealmActive)
+	{
+		PreviousRealmCenter = URealmRevealerComponent::GetActiveCenter();
+		PreviousRealmRadius = URealmRevealerComponent::GetActiveRadius();
+	}
 }
 
 void AEnemyProjectile::InitializeAndLaunch(const FVector& Direction, float Speed, AActor* InInstigator, ERealmType InRealm)
@@ -165,31 +182,43 @@ void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, A
 
 bool AEnemyProjectile::TryHandleRealmBoundaryBlock(const FVector& Start, const FVector& End)
 {
-	if (!URealmRevealerComponent::IsAnyActive())
+	const bool bCurActive = URealmRevealerComponent::IsAnyActive();
+
+	// 必须两帧都有活动揭示球才能做跨界判定。
+	// - 两帧都无：根本没有边界。
+	// - 刚激活（上一帧无，这一帧有）：把子弹当前位置视作"球刚罩住它时的基线"，
+	//   不当作跨界事件（等下一帧开始对比）。
+	// - 刚失活（上一帧有，这一帧无）：球已消失，没有边界可拦。
+	if (!bCurActive || !bHadPreviousRealmActive)
 	{
 		return false;
 	}
 
-	const FVector Center = URealmRevealerComponent::GetActiveCenter();
-	const float Radius = URealmRevealerComponent::GetActiveRadius();
-	if (Radius <= KINDA_SMALL_NUMBER)
+	const FVector CurCenter = URealmRevealerComponent::GetActiveCenter();
+	const float CurRadius = URealmRevealerComponent::GetActiveRadius();
+	if (CurRadius <= KINDA_SMALL_NUMBER || PreviousRealmRadius <= KINDA_SMALL_NUMBER)
 	{
 		return false;
 	}
 
-	const float StartDistSq = FVector::DistSquared(Start, Center);
-	const float EndDistSq = FVector::DistSquared(End, Center);
-	const bool bStartInside = StartDistSq <= FMath::Square(Radius);
-	const bool bEndInside = EndDistSq <= FMath::Square(Radius);
+	// 关键修复：Start 的内外归属用上一帧的球（PreviousRealmCenter/Radius），
+	// End 的归属用当前帧的球。球在 Growing/Shrinking 时半径每帧在变，若统一用
+	// 当前半径去判 Start，会把历史状态错误地按当前半径重写，导致跨界事件被吞。
+	const float StartDistSq = FVector::DistSquared(Start, PreviousRealmCenter);
+	const float EndDistSq = FVector::DistSquared(End, CurCenter);
+	const bool bStartInside = StartDistSq <= FMath::Square(PreviousRealmRadius);
+	const bool bEndInside = EndDistSq <= FMath::Square(CurRadius);
 
 	if (bStartInside == bEndInside)
 	{
 		return false;
 	}
 
+	// 求交点时用当前球面。严格讲应当沿 Start→End 插值球心/半径再求交，但对"拦截"
+	// 决策已经靠上面 inside 比对拿对了；交点只影响 ImpactFX 位置，用当前球面足够近似。
 	FVector ImpactPoint = End;
 	FVector ImpactNormal = (End - Start).GetSafeNormal();
-	if (!FindSphereBoundaryIntersection(Start, End, Center, Radius, ImpactPoint, ImpactNormal))
+	if (!FindSphereBoundaryIntersection(Start, End, CurCenter, CurRadius, ImpactPoint, ImpactNormal))
 	{
 		const FVector FallbackDir = (End - Start).GetSafeNormal();
 		ImpactPoint = Start;

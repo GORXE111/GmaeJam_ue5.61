@@ -86,4 +86,11 @@ protected:
 
 	FVector PreviousLocation = FVector::ZeroVector;
 	bool bHasPreviousLocation = false;
+
+	// 上一帧看到的揭示球状态。用于在球动画（Growing/Shrinking）中正确判跨界：
+	// Start 用上一帧的半径/中心，End 用当前帧的，避免球扩张/收缩把 Start 的归属
+	// 错误地按当前半径重算而导致漏判。
+	FVector PreviousRealmCenter = FVector::ZeroVector;
+	float PreviousRealmRadius = 0.f;
+	bool bHadPreviousRealmActive = false;
 };
