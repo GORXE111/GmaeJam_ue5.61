@@ -84,13 +84,11 @@ protected:
 		const FVector& Center, float Radius, FVector& OutImpactPoint, FVector& OutImpactNormal);
 	void HandleImpactAndDestroy(const FVector& ImpactPoint, const FVector& ImpactNormal);
 
+	/** 读取当前活跃蓝球的"稳定边界"：中心取其 Actor 位置，半径取其设计最大值（BaseRevealRadius）。
+	 *  这样彻底忽略 Growing/Shrinking 期的半径动画，只要蓝球存在就按最大范围拦截。返回 false 表示
+	 *  当前没有活跃蓝球。O(1) —— 通过 AGsSkillBigBall::GetActiveInstance() 直接拿到实例指针。 */
+	static bool GetActiveBallBoundary(FVector& OutCenter, float& OutRadius);
+
 	FVector PreviousLocation = FVector::ZeroVector;
 	bool bHasPreviousLocation = false;
-
-	// 上一帧看到的揭示球状态。用于在球动画（Growing/Shrinking）中正确判跨界：
-	// Start 用上一帧的半径/中心，End 用当前帧的，避免球扩张/收缩把 Start 的归属
-	// 错误地按当前半径重算而导致漏判。
-	FVector PreviousRealmCenter = FVector::ZeroVector;
-	float PreviousRealmRadius = 0.f;
-	bool bHadPreviousRealmActive = false;
 };

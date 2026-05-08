@@ -6,6 +6,8 @@
 #include "Player/Skill/GsSkillBall.h"
 #include "RealmRevealerComponent.h"
 
+TWeakObjectPtr<AGsSkillBigBall> AGsSkillBigBall::ActiveInstance = nullptr;
+
 AGsSkillBigBall::AGsSkillBigBall()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -27,6 +29,9 @@ void AGsSkillBigBall::BeginPlay()
 	// 从飞行小球接管"当前活跃技能"占位，让玩家在大球完整生命周期里都不能再施法。
 	AGsSkillBall::SetActiveSkill(this);
 
+	// 登记为全局活跃大球，供 Enemy 模块 O(1) 查询最大揭示半径。
+	ActiveInstance = this;
+
 	if (CollisionComponent)
 	{
 		CollisionComponent->SetSphereRadius(CollisionRadius, true);
@@ -46,6 +51,10 @@ void AGsSkillBigBall::BeginPlay()
 void AGsSkillBigBall::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	AGsSkillBall::ClearActiveSkillIf(this);
+	if (ActiveInstance.Get() == this)
+	{
+		ActiveInstance.Reset();
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
