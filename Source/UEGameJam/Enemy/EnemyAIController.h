@@ -24,7 +24,6 @@ public:
 
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
-	virtual void Tick(float DeltaSeconds) override;
 
 	/** 查找带此 Tag 的玩家 Pawn 并缓存 */
 	UFUNCTION(BlueprintCallable, Category="Enemy|AI")
