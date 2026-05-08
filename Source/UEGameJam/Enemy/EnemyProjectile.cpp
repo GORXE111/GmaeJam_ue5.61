@@ -127,12 +127,21 @@ void AEnemyProjectile::OnHit(UPrimitiveComponent* /*HitComp*/, AActor* OtherActo
 }
 
 void AEnemyProjectile::OnBeginOverlap(UPrimitiveComponent* /*OverlappedComp*/, AActor* OtherActor,
-                                      UPrimitiveComponent* /*OtherComp*/, int32 /*OtherBodyIndex*/,
+                                      UPrimitiveComponent* OtherComp, int32 /*OtherBodyIndex*/,
                                       bool /*bFromSweep*/, const FHitResult& SweepResult)
 {
 	// 过滤：自己 / 发射者本人 / 其它敌人（任何不带 PlayerTag 的 Pawn）一律不处理，
 	// 子弹继续飞。
 	if (!OtherActor || OtherActor == this || OtherActor == GetInstigator())
+	{
+		return;
+	}
+
+	// 只接受"真正的 Pawn 身体"触发的 Overlap：玩家 Capsule 的 ObjectType 是 ECC_Pawn。
+	// 玩家身上还有一个常开的 MeleeDamageCollision（攻击盒，ObjectType 不是 Pawn，
+	// 从玩家前方 140cm 向外延伸 70cm），如果不过滤，子弹在还没飞出蓝球边界前就会
+	// 撞上伸进球里的攻击盒，被当作"打到玩家"直接结算伤害，绕过跨界拦截。
+	if (OtherComp && OtherComp->GetCollisionObjectType() != ECC_Pawn)
 	{
 		return;
 	}
