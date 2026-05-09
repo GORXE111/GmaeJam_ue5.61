@@ -7,7 +7,6 @@
 #include "GsSkillBall.generated.h"
 
 class USphereComponent;
-class UPrimitiveComponent;
 class AGsSkillBigBall;
 
 /**
@@ -18,7 +17,7 @@ class UEGAMEJAM_API AGsSkillBall : public AActor
 {
 	GENERATED_BODY()
 
-	/** 技能球的碰撞体，用于重叠触发命中 */
+	/** 技能球的碰撞体，用于阻挡移动并停在命中位置 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> CollisionComponent;
 
@@ -27,22 +26,27 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill Ball", meta = (ClampMin = 0, Units = "cm/s"))
 	float MoveSpeed = 3000.0f;
 
-	/** 小球从生成点飞出超过这个距离后自动消失，0表示不按距离自动销毁 */
+	/** 技能球存在多久后自动销毁，0表示不自动销毁 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill Ball", meta = (ClampMin = 0, Units = "s"))
+	float DestroyDelay = 30.0f;
+
+	/** 飞行小球的碰撞半径，数值越小越容易穿过狭窄空间 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill Ball", meta = (ClampMin = 0, Units = "cm"))
-	float MaxFlightDistance = 10000.0f;
+	float FlightCollisionRadius = 16.0f;
+
+	/** 飞行小球的整体缩放，用于控制蓝图视觉表现大小 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill Ball", meta = (ClampMin = 0))
+	FVector FlightActorScale = FVector(1.0f);
 
 	/** 小球命中后生成的大球类，可在蓝图中替换具体表现 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Skill Ball")
 	TSubclassOf<AGsSkillBigBall> ImpactBallClass;
 
-	/** 技能球开始飞行的位置，用于计算最大飞行距离 */
-	FVector StartLocation = FVector::ZeroVector;
+	/** 技能球要飞向的目标点 */
+	FVector TargetLocation = FVector::ZeroVector;
 
-	/** 技能球初始化时确定的固定飞行方向 */
-	FVector FlightDirection = FVector::ForwardVector;
-
-	/** 是否已经初始化固定飞行方向 */
-	bool bHasFlightDirection = false;
+	/** 是否已经设置了有效的目标点 */
+	bool bHasTarget = false;
 
 	/** 是否已经停止移动 */
 	bool bStopped = false;
@@ -63,17 +67,17 @@ public:
 
 	/** 仅当 ActiveSkillPtr 仍指向 InActor 时才清空，避免大球已接管后小球的 EndPlay 把它清掉。 */
 	static void ClearActiveSkillIf(AActor* InActor);
-public:
-	virtual void Tick(float DeltaSeconds) override;
+
 protected:
 	/** 当前活跃的技能 actor（小球或大球，二者接力共享同一个槽） */
 	static TWeakObjectPtr<AActor> ActiveSkillPtr;
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void Tick(float DeltaSeconds) override;
 
-	UFUNCTION()
-	void OnCollisionComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	/** 应用飞行小球的碰撞与视觉大小 */
+	void ApplyFlightBallSettings();
 
 	/** 处理小球命中，生成大球并销毁自己 */
 	void HandleImpact(const FVector& ImpactLocation);

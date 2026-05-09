@@ -3,7 +3,6 @@
 #include "Player/Skill/GsSkillBall.h"
 
 #include "Components/SphereComponent.h"
-#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Player/Skill/GsSkillBigBall.h"
 
@@ -35,10 +34,8 @@ AGsSkillBall::AGsSkillBall()
 	RootComponent = CollisionComponent;
 
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	CollisionComponent->SetGenerateOverlapEvents(true);
-	CollisionComponent->SetCollisionResponseToAllChannels(ECR_Overlap);
+	CollisionComponent->SetCollisionResponseToAllChannels(ECR_Block);
 	CollisionComponent->CanCharacterStepUpOn = ECanBeCharacterBase::ECB_No;
-	CollisionComponent->OnComponentBeginOverlap.AddDynamic(this, &AGsSkillBall::OnCollisionComponentBeginOverlap);
 
 	ImpactBallClass = AGsSkillBigBall::StaticClass();
 }
@@ -48,6 +45,12 @@ void AGsSkillBall::BeginPlay()
 	Super::BeginPlay();
 
 	SetActiveSkill(this);
+	ApplyFlightBallSettings();
+
+	if (DestroyDelay > 0.0f)
+	{
+		SetLifeSpan(DestroyDelay);
+	}
 }
 
 void AGsSkillBall::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -58,62 +61,54 @@ void AGsSkillBall::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AGsSkillBall::InitializeSkillBall(const FVector& InTargetLocation)
 {
-	StartLocation = GetActorLocation();
-
-	const FVector TargetDirection = InTargetLocation - StartLocation;
-	FlightDirection = TargetDirection.SizeSquared() > KINDA_SMALL_NUMBER
-		? TargetDirection.GetSafeNormal()
-		: GetActorForwardVector().GetSafeNormal();
-	if (FlightDirection.IsNearlyZero())
-	{
-		FlightDirection = FVector::ForwardVector;
-	}
-
-	bHasFlightDirection = true;
+	TargetLocation = InTargetLocation;
+	bHasTarget = true;
 	bStopped = false;
+	ApplyFlightBallSettings();
 }
 
 void AGsSkillBall::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (bStopped || !bHasFlightDirection)
+	if (bStopped || !bHasTarget)
 	{
 		return;
 	}
 
 	const FVector CurrentLocation = GetActorLocation();
-	const float MoveDistance = MoveSpeed * DeltaSeconds;
-	const FVector DesiredLocation = CurrentLocation + (FlightDirection * MoveDistance);
-	if (MaxFlightDistance > 0.0f && FVector::DistSquared(StartLocation, DesiredLocation) >= FMath::Square(MaxFlightDistance))
+	const FVector ToTarget = TargetLocation - CurrentLocation;
+	if (ToTarget.SizeSquared() <= KINDA_SMALL_NUMBER)
 	{
-		Destroy();
+		HandleImpact(CurrentLocation);
 		return;
 	}
+
+	const FVector MoveDirection = ToTarget.GetSafeNormal();
+	const float MoveDistance = MoveSpeed * DeltaSeconds;
+	const bool bReachTargetThisFrame = ToTarget.SizeSquared() <= FMath::Square(MoveDistance);
+	const FVector DesiredLocation = bReachTargetThisFrame
+		? TargetLocation
+		: CurrentLocation + (MoveDirection * MoveDistance);
 
 	FHitResult SweepHit;
 	SetActorLocation(DesiredLocation, true, &SweepHit, ETeleportType::None);
-	
-	if (SweepHit.bBlockingHit)
+
+	if (SweepHit.bBlockingHit || bReachTargetThisFrame)
 	{
-		HandleImpact(GetActorLocation());
+		const FVector ImpactLocation = SweepHit.bBlockingHit ? SweepHit.ImpactPoint : DesiredLocation;
+		HandleImpact(ImpactLocation);
 	}
 }
 
-void AGsSkillBall::OnCollisionComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void AGsSkillBall::ApplyFlightBallSettings()
 {
-	if (GEngine)
+	if (CollisionComponent)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, FString::Printf(TEXT("SkillBall overlap: %s"), *OtherActor->GetName()));
-	}
-	if (bStopped || !OtherActor || OtherActor == this || OtherActor == GetOwner())
-	{
-		return;
+		CollisionComponent->SetSphereRadius(FlightCollisionRadius, true);
 	}
 
-	
-
-	HandleImpact(GetActorLocation());
+	SetActorScale3D(FlightActorScale);
 }
 
 void AGsSkillBall::HandleImpact(const FVector& ImpactLocation)
