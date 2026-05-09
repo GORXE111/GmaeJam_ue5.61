@@ -2,6 +2,7 @@
 
 #include "Player/Character/GsPlayer.h"
 
+#include "Components/CapsuleComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -12,6 +13,14 @@
 void AGsPlayer::DoFalcula()
 {
 	if (bIsDead)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	const float CurrentWorldTime = World ? World->GetTimeSeconds() : 0.0f;
+	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
+	if ((CurrentWorldTime - LastFalculaTime) < PlayerTuning.GrappleCooldown)
 	{
 		return;
 	}
@@ -28,47 +37,29 @@ void AGsPlayer::DoFalcula()
 		return;
 	}
 
-	const FVector StartLocation = GetActorLocation();
+	const UCapsuleComponent* PlayerCapsuleComponent = GetCapsuleComponent();
+	const FVector StartLocation = PlayerCapsuleComponent ? PlayerCapsuleComponent->Bounds.Origin : GetActorLocation();
 	const FVector TargetLocation = GrapplePoint->GetGrappleTargetLocation();
-	const float HeightDelta = TargetLocation.Z - StartLocation.Z;
-	if (HeightDelta <= KINDA_SMALL_NUMBER)
+
+	const FVector ToTarget = TargetLocation - StartLocation;
+	const float TargetDistance = ToTarget.Size();
+	const float MaxGrappleDistance = GrapplePoint->GetGrappleProximityRadius();
+	if (MaxGrappleDistance <= KINDA_SMALL_NUMBER)
 	{
 		return;
 	}
 
-	const float Gravity = FMath::Abs(PlayerMovementComponent->GetGravityZ());
-	if (Gravity <= KINDA_SMALL_NUMBER)
+	const FVector DirectDirection = ToTarget.GetSafeNormal();
+	if (DirectDirection.IsNearlyZero())
 	{
 		return;
 	}
 
-	const float TimeToApex = FMath::Sqrt((2.0f * HeightDelta) / Gravity);
-	if (TimeToApex <= KINDA_SMALL_NUMBER)
-	{
-		return;
-	}
-
-	constexpr float GrappleForwardCarryScale = 1.0f;
-
-	FVector ToTargetHorizontal = TargetLocation - StartLocation;
-	ToTargetHorizontal.Z = 0.0f;
-	const float HorizontalDistance = ToTargetHorizontal.Size();
-	if (HorizontalDistance <= KINDA_SMALL_NUMBER)
-	{
-		return;
-	}
-
-	const FVector DirectionToTarget = ToTargetHorizontal / HorizontalDistance;
-	const float CarryDistance = HorizontalDistance * GrappleForwardCarryScale;
-	const FVector ForwardTarget = TargetLocation + (DirectionToTarget * CarryDistance);
-
-	FVector HorizontalVelocity = ForwardTarget - StartLocation;
-	HorizontalVelocity.Z = 0.0f;
-	HorizontalVelocity /= TimeToApex;
-
-	const float VerticalSpeed = Gravity * TimeToApex;
-	const FVector LaunchVelocity = HorizontalVelocity + (FVector::UpVector * VerticalSpeed);
+	const float DistanceAlpha = FMath::Clamp(TargetDistance / MaxGrappleDistance, 0.0f, 1.0f);
+	const float LaunchSpeed = PlayerTuning.GrappleDirectSpeed * DistanceAlpha;
+	const FVector LaunchVelocity = DirectDirection * LaunchSpeed;
 	LaunchCharacter(LaunchVelocity, true, true);
+	LastFalculaTime = CurrentWorldTime;
 	bIsFalculaLaunching = true;
 
 	if (GEngine)

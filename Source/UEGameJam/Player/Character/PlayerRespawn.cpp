@@ -128,11 +128,13 @@ void AGsPlayer::ResetForRespawn(const FTransform& RespawnTransform)
 	{
 		const float CurrentWorldTime = World->GetTimeSeconds();
 		LastDashTime = CurrentWorldTime - PlayerTuning.DashCooldown;
+		LastFalculaTime = CurrentWorldTime - PlayerTuning.GrappleCooldown;
 		LastFallRecoveryTime = CurrentWorldTime - PlayerTuning.SafeLandingMinInterval;
 	}
 	else
 	{
 		LastDashTime = -PlayerTuning.DashCooldown;
+		LastFalculaTime = -PlayerTuning.GrappleCooldown;
 		LastFallRecoveryTime = -PlayerTuning.SafeLandingMinInterval;
 	}
 

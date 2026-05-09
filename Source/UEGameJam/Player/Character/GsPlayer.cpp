@@ -91,12 +91,14 @@ void AGsPlayer::BeginPlay()
 	bHasSafeLocation = true;
 	LastFallRecoveryTime = -PlayerTuning.SafeLandingMinInterval;
 	LastDashTime = -PlayerTuning.DashCooldown;
+	LastFalculaTime = -PlayerTuning.GrappleCooldown;
 	bIsFalculaLaunching = false;
 	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
 	{
 		LastDashTime = World->GetTimeSeconds() - PlayerTuning.DashCooldown;
+		LastFalculaTime = World->GetTimeSeconds() - PlayerTuning.GrappleCooldown;
 		if (AGsLevelStateGameState* LevelState = World->GetGameState<AGsLevelStateGameState>())
 		{
 			LevelState->EnsureFallbackRespawnTransform(GetActorTransform());

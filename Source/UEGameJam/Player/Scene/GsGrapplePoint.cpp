@@ -43,6 +43,11 @@ FVector AGsGrapplePoint::GetGrappleTargetLocation() const
 	return GetActorLocation();
 }
 
+float AGsGrapplePoint::GetGrappleProximityRadius() const
+{
+	return ProximitySphere ? ProximitySphere->GetScaledSphereRadius() : 0.0f;
+}
+
 void AGsGrapplePoint::BeginPlay()
 {
 	Super::BeginPlay();

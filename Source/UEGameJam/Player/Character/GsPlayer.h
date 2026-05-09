@@ -127,6 +127,9 @@ protected:
 	/** 最近一次成功冲刺发生的时间 */
 	float LastDashTime = 0.0f;
 
+	/** 最近一次成功触发钩索的时间 */
+	float LastFalculaTime = 0.0f;
+
 	/** 进入冲刺前缓存的完整速度，用于冲刺结束时提取前向惯性和竖直速度 */
 	FVector PreDashVelocity = FVector::ZeroVector;
 

@@ -150,6 +150,14 @@ struct UEGAMEJAM_API FGsPlayerTuningRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Wall Run", meta = (ClampMin = 0))
 	float WallRunCameraTiltInterpSpeed = 8.0f;
 
+	/** 钩索直飞的速度 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Grapple", meta = (ClampMin = 0, Units = "cm/s"))
+	float GrappleDirectSpeed = 2200.0f;
+
+	/** 两次钩索触发之间的冷却时间，数值越大连续钩索间隔越久 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Grapple", meta = (ClampMin = 0, Units = "s"))
+	float GrappleCooldown = 1.0f;
+
 	/** 相对最近一次安全落地点，向下掉落超过这个高度后会回传，单位为厘米 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fall Recovery", meta = (ClampMin = 0, Units = "cm"))
 	float FallResetDepth = 2000.0f;

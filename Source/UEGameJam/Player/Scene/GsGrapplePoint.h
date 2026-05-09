@@ -47,6 +47,7 @@ public:
 
 	bool IsPlayerNearbyFor(const AGsPlayer* Player) const;
 	FVector GetGrappleTargetLocation() const;
+	float GetGrappleProximityRadius() const;
 
 protected:
 	virtual void BeginPlay() override;
