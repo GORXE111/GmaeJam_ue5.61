@@ -106,13 +106,17 @@ struct UEGAMEJAM_API FGsPlayerTuningRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 0))
 	float CameraFOVInterpSpeed = 8.0f;
 
-	/** 头部原始旋转偏移的保留比例，数值越大保留的方向轻晃越明显 */
+	/** 头部原始旋转偏移的保留比例，当前相机已解耦头部旋转，保留为兼容旧表 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 0, ClampMax = 1))
-	float HeadCameraRotationBlendAlpha = 0.25f;
+	float HeadCameraRotationBlendAlpha = 0.0f;
 
 	/** 头部原始旋转偏移平滑过渡的速度，数值越大轻晃跟随越快 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 0))
 	float HeadCameraRotationInterpSpeed = 12.0f;
+
+	/** 相机跟随头部位置的平滑速度，数值越大越贴近头部，0 表示直接跟随 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 0))
+	float HeadCameraLocationInterpSpeed = 18.0f;
 
 	/** 起跳后延迟多久才开始检测墙跑触发，单位为秒 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Wall Run", meta = (ClampMin = 0, Units = "s"))

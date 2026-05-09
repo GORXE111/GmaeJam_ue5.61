@@ -15,6 +15,10 @@
 #include "Player/Game/GsLevelStateGameState.h"
 #include "RealmRevealerComponent.h"
 
+static const FName FirstPersonCameraHeadSocketName(TEXT("head"));
+static const FVector FirstPersonCameraHeadLocationOffset(-2.8f, 5.89f, 0.0f);
+static const FRotator FirstPersonCameraInitialRelativeRotation(0.0f, 90.0f, -90.0f);
+
 AGsPlayer::AGsPlayer()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -28,14 +32,14 @@ AGsPlayer::AGsPlayer()
 	FirstPersonMesh->SetCollisionProfileName(FName("NoCollision"));
 
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
-	FirstPersonCameraComponent->SetupAttachment(FirstPersonMesh, FName("head"));
-	FirstPersonCameraComponent->SetRelativeLocationAndRotation(FVector(-2.8f, 5.89f, 0.0f), FRotator(0.0f, 90.0f, -90.0f));
+	FirstPersonCameraComponent->SetupAttachment(GetRootComponent());
+	FirstPersonCameraComponent->SetRelativeLocationAndRotation(FirstPersonCameraHeadLocationOffset, FirstPersonCameraInitialRelativeRotation);
 	FirstPersonCameraComponent->bUsePawnControlRotation = false;
 	FirstPersonCameraComponent->bEnableFirstPersonFieldOfView = true;
 	FirstPersonCameraComponent->bEnableFirstPersonScale = true;
 	FirstPersonCameraComponent->FirstPersonFieldOfView = 70.0f;
 	FirstPersonCameraComponent->FirstPersonScale = 0.6f;
-	DefaultFirstPersonCameraRelativeTransform = FirstPersonCameraComponent->GetRelativeTransform();
+	DefaultFirstPersonCameraRelativeTransform = FTransform(FirstPersonCameraInitialRelativeRotation, FirstPersonCameraHeadLocationOffset);
 
 	MeleeDamageCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeDamageCollision"));
 	MeleeDamageCollision->SetupAttachment(GetRootComponent());
@@ -107,8 +111,8 @@ void AGsPlayer::BeginPlay()
 
 	if (FirstPersonCameraComponent)
 	{
-		DefaultFirstPersonCameraRelativeTransform = FirstPersonCameraComponent->GetRelativeTransform();
 		CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
+		bResetFirstPersonCameraLocationOnNextUpdate = true;
 		TargetWallRunCameraRoll = 0.0f;
 		CurrentWallRunCameraRoll = 0.0f;
 		FirstPersonCameraComponent->SetFieldOfView(PlayerTuning.DefaultCameraFOV);
@@ -186,7 +190,7 @@ void AGsPlayer::Tick(float DeltaSeconds)
 		if (FirstPersonCameraComponent)
 		{
 			UpdateWallRunCameraTilt(DeltaSeconds);
-			UpdateFirstPersonCameraRotation(DeltaSeconds);
+			UpdateFirstPersonCameraTransform(DeltaSeconds);
 		}
 		return;
 	}
@@ -241,7 +245,7 @@ void AGsPlayer::Tick(float DeltaSeconds)
 	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, PlayerTuning.CameraFOVInterpSpeed);
 	FirstPersonCameraComponent->SetFieldOfView(NewFOV);
 	UpdateWallRunCameraTilt(DeltaSeconds);
-	UpdateFirstPersonCameraRotation(DeltaSeconds);
+	UpdateFirstPersonCameraTransform(DeltaSeconds);
 }
 
 void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
@@ -367,42 +371,37 @@ void AGsPlayer::DoAim(float Yaw, float Pitch)
 	AddControllerPitchInput(Pitch);
 }
 
-void AGsPlayer::UpdateFirstPersonCameraRotation(float DeltaSeconds)
+void AGsPlayer::UpdateFirstPersonCameraTransform(float DeltaSeconds)
 {
 	if (!FirstPersonCameraComponent || !FirstPersonMesh)
 	{
 		return;
 	}
 
-	const FName CameraAttachSocketName = FirstPersonCameraComponent->GetAttachSocketName();
-	const FTransform HeadSocketWorldTransform = CameraAttachSocketName != NAME_None
-		? FirstPersonMesh->GetSocketTransform(CameraAttachSocketName, RTS_World)
+	const FTransform HeadSocketWorldTransform = FirstPersonMesh->DoesSocketExist(FirstPersonCameraHeadSocketName)
+		? FirstPersonMesh->GetSocketTransform(FirstPersonCameraHeadSocketName, RTS_World)
 		: FirstPersonMesh->GetComponentTransform();
-	const FRotator RawCameraWorldRotation =
-		(DefaultFirstPersonCameraRelativeTransform * HeadSocketWorldTransform).GetRotation().Rotator();
 
-	FRotator DesiredCameraWorldRotation = RawCameraWorldRotation;
+	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
+	FRotator DesiredCameraWorldRotation = GetActorRotation();
 	if (AController* PlayerController = GetController())
 	{
-		const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
-		const FRotator ControlRotation = PlayerController->GetControlRotation().GetNormalized();
-		const FRotator RawHeadRotationOffset = (RawCameraWorldRotation - ControlRotation).GetNormalized();
-		const float BlendAlpha = FMath::Clamp(PlayerTuning.HeadCameraRotationBlendAlpha, 0.0f, 1.0f);
-		const FRotator TargetHeadRotationOffset(
-			RawHeadRotationOffset.Pitch * BlendAlpha,
-			RawHeadRotationOffset.Yaw * BlendAlpha,
-			RawHeadRotationOffset.Roll * BlendAlpha);
-
-		CurrentHeadCameraRotationOffset = PlayerTuning.HeadCameraRotationInterpSpeed > 0.0f
-			? FMath::RInterpTo(CurrentHeadCameraRotationOffset, TargetHeadRotationOffset, DeltaSeconds, PlayerTuning.HeadCameraRotationInterpSpeed).GetNormalized()
-			: TargetHeadRotationOffset.GetNormalized();
-		DesiredCameraWorldRotation = (ControlRotation + CurrentHeadCameraRotationOffset).GetNormalized();
+		DesiredCameraWorldRotation = PlayerController->GetControlRotation().GetNormalized();
 	}
-	else
-	{
-		CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
-	}
+	CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
 
+	const FRotator StableCameraYawRotation(0.0f, DesiredCameraWorldRotation.Yaw, 0.0f);
+	const FVector TargetCameraWorldLocation =
+		HeadSocketWorldTransform.GetLocation()
+		+ StableCameraYawRotation.RotateVector(DefaultFirstPersonCameraRelativeTransform.GetLocation());
+
+	const FVector DesiredCameraWorldLocation =
+		!bResetFirstPersonCameraLocationOnNextUpdate && PlayerTuning.HeadCameraLocationInterpSpeed > 0.0f
+			? FMath::VInterpTo(FirstPersonCameraComponent->GetComponentLocation(), TargetCameraWorldLocation, DeltaSeconds, PlayerTuning.HeadCameraLocationInterpSpeed)
+			: TargetCameraWorldLocation;
+	bResetFirstPersonCameraLocationOnNextUpdate = false;
+
+	FirstPersonCameraComponent->SetWorldLocation(DesiredCameraWorldLocation);
 	DesiredCameraWorldRotation.Roll = FRotator::NormalizeAxis(DesiredCameraWorldRotation.Roll + CurrentWallRunCameraRoll);
 	FirstPersonCameraComponent->SetWorldRotation(DesiredCameraWorldRotation.GetNormalized());
 }

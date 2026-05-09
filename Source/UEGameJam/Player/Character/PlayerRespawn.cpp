@@ -16,6 +16,7 @@ void AGsPlayer::Die()
 	}
 
 	bIsDead = true;
+	bResetFirstPersonCameraLocationOnNextUpdate = true;
 
 	StopSlide(true);
 	if (IsDashing())
@@ -117,6 +118,7 @@ void AGsPlayer::ResetForRespawn(const FTransform& RespawnTransform)
 	LastSafeLocation = RespawnTransform.GetLocation();
 	LastSafeRotation = RespawnTransform.GetRotation().Rotator();
 	CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
+	bResetFirstPersonCameraLocationOnNextUpdate = true;
 	TargetWallRunCameraRoll = 0.0f;
 	CurrentWallRunCameraRoll = 0.0f;
 	SetWallRunCameraTiltTarget(0.0f);

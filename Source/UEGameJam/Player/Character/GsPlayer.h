@@ -208,11 +208,14 @@ protected:
 	/** 进入墙跑前缓存的自定义移动模式 */
 	uint8 PreWallRunCustomMovementMode = 0;
 
-	/** 第一人称相机默认的相对变换，用于还原头部 Socket 的原始跟随朝向 */
+	/** 第一人称相机相对头部位置的稳定偏移，不使用头部 Socket 旋转 */
 	FTransform DefaultFirstPersonCameraRelativeTransform = FTransform::Identity;
 
-	/** 当前平滑后的头部旋转偏移 */
+	/** 当前平滑后的头部旋转偏移，当前相机已解耦头部旋转，保留为兼容旧状态 */
 	FRotator CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
+
+	/** 是否需要在下一次相机更新时直接同步到头部目标位置 */
+	bool bResetFirstPersonCameraLocationOnNextUpdate = true;
 
 	/** 当前墙跑视角目标 Roll，右墙为负左墙为正，非墙跑为 0 */
 	float TargetWallRunCameraRoll = 0.0f;
@@ -395,8 +398,8 @@ protected:
 	/** 每帧平滑更新墙跑时的相机倾斜 */
 	void UpdateWallRunCameraTilt(float DeltaSeconds);
 
-	/** 每帧更新第一人称相机朝向，合成控制器瞄准、头部轻晃与墙跑倾斜 */
-	void UpdateFirstPersonCameraRotation(float DeltaSeconds);
+	/** 每帧更新第一人称相机位置和朝向，合成头部跟随、控制器瞄准、头部轻晃与墙跑倾斜 */
+	void UpdateFirstPersonCameraTransform(float DeltaSeconds);
 
 	/** 设置墙跑相机倾斜的目标 Roll */
 	void SetWallRunCameraTiltTarget(float InTargetRoll);
