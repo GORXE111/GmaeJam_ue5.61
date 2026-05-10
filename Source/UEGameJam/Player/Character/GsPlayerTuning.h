@@ -98,6 +98,10 @@ struct UEGAMEJAM_API FGsPlayerTuningRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
 	float SlideCameraFOV = 130.0f;
 
+	/** 钩索飞行期间目标视野角，用于增强高速牵引的速度感 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 1, ClampMax = 170, Units = "deg"))
+	float GrappleCameraFOV = 130.0f;
+
 	/** 水平移动速度达到这个值时视为跑起来，单位为厘米每秒 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (ClampMin = 0, Units = "cm/s"))
 	float RunFOVSpeedThreshold = 450.0f;

@@ -29,9 +29,17 @@ class UEGAMEJAM_API AGsGrapplePoint : public AActor
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> ProximitySphere;
 
+	/** 玩家进入此范围后显示钩爪点 UI，范围在 BeginPlay 根据可用范围额外增加 UiVisibilityRadiusExtra 厘米 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USphereComponent> UiVisibilitySphere;
+
 	/** 显示在场景中的钩爪点 UI 组件 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UWidgetComponent> GrappleWidgetComponent;
+	
+	/** 玩家靠近显示范围，根据可用范围额外增加 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	float UiVisibilityRadiusExtra = 600.0f;
 
 protected:
 	/** 场景 UI 相对钩爪点向上的偏移高度，单位为厘米 */
@@ -78,8 +86,26 @@ private:
 		UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex);
 
+	UFUNCTION()
+	void HandleUiVisibilityBeginOverlap(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex,
+		bool bFromSweep,
+		const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void HandleUiVisibilityEndOverlap(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex);
+
 	void ApplyConfigToComponents();
 	void CacheGrapplePointUI();
 	void RefreshNearbyPlayerFromCurrentOverlaps();
+	void RefreshUiVisibilityFromCurrentOverlaps();
 	void SetPlayerNearby(bool bNearby, AGsPlayer* InPlayer);
+	void SetGrappleWidgetVisible(bool bVisible);
 };

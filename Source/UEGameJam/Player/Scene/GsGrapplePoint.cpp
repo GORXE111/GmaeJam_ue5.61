@@ -23,6 +23,14 @@ AGsGrapplePoint::AGsGrapplePoint()
 	ProximitySphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	ProximitySphere->SetGenerateOverlapEvents(true);
 
+	UiVisibilitySphere = CreateDefaultSubobject<USphereComponent>(TEXT("UiVisibilitySphere"));
+	UiVisibilitySphere->SetupAttachment(SceneRoot);
+	UiVisibilitySphere->InitSphereRadius(950.0f);
+	UiVisibilitySphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	UiVisibilitySphere->SetCollisionResponseToAllChannels(ECR_Ignore);
+	UiVisibilitySphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	UiVisibilitySphere->SetGenerateOverlapEvents(true);
+
 	GrappleWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("GrappleWidget"));
 	GrappleWidgetComponent->SetupAttachment(SceneRoot);
 	GrappleWidgetComponent->SetRelativeLocation(FVector(0.0f, 0.0f, WidgetHeightOffset));
@@ -62,6 +70,22 @@ void AGsGrapplePoint::BeginPlay()
 
 	CacheGrapplePointUI();
 	SetPlayerNearby(false, nullptr);
+
+	if (UiVisibilitySphere)
+	{
+		const float ProximityRadius = ProximitySphere ? ProximitySphere->GetScaledSphereRadius() : 0.0f;
+		const float VisibilityRadius = ProximityRadius + UiVisibilityRadiusExtra;
+		const float VisibilitySphereScale = UiVisibilitySphere->GetShapeScale();
+		const float UnscaledVisibilityRadius = VisibilitySphereScale > KINDA_SMALL_NUMBER
+			? VisibilityRadius / VisibilitySphereScale
+			: VisibilityRadius;
+		UiVisibilitySphere->SetSphereRadius(UnscaledVisibilityRadius, true);
+		UiVisibilitySphere->OnComponentBeginOverlap.AddDynamic(this, &AGsGrapplePoint::HandleUiVisibilityBeginOverlap);
+		UiVisibilitySphere->OnComponentEndOverlap.AddDynamic(this, &AGsGrapplePoint::HandleUiVisibilityEndOverlap);
+	}
+
+	SetGrappleWidgetVisible(false);
+	RefreshUiVisibilityFromCurrentOverlaps();
 	RefreshNearbyPlayerFromCurrentOverlaps();
 }
 
@@ -112,6 +136,48 @@ void AGsGrapplePoint::HandleProximityEndOverlap(
 	}
 
 	SetPlayerNearby(false, nullptr);
+}
+
+void AGsGrapplePoint::HandleUiVisibilityBeginOverlap(
+	UPrimitiveComponent* OverlappedComponent,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex,
+	bool bFromSweep,
+	const FHitResult& SweepResult)
+{
+	(void)OverlappedComponent;
+	(void)OtherComp;
+	(void)OtherBodyIndex;
+	(void)bFromSweep;
+	(void)SweepResult;
+
+	const AGsPlayer* Player = Cast<AGsPlayer>(OtherActor);
+	if (!Player || Player->IsDead())
+	{
+		return;
+	}
+
+	SetGrappleWidgetVisible(true);
+}
+
+void AGsGrapplePoint::HandleUiVisibilityEndOverlap(
+	UPrimitiveComponent* OverlappedComponent,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex)
+{
+	(void)OverlappedComponent;
+	(void)OtherComp;
+	(void)OtherBodyIndex;
+
+	const AGsPlayer* Player = Cast<AGsPlayer>(OtherActor);
+	if (!Player)
+	{
+		return;
+	}
+
+	RefreshUiVisibilityFromCurrentOverlaps();
 }
 
 void AGsGrapplePoint::ApplyConfigToComponents()
@@ -167,6 +233,29 @@ void AGsGrapplePoint::RefreshNearbyPlayerFromCurrentOverlaps()
 	}
 }
 
+void AGsGrapplePoint::RefreshUiVisibilityFromCurrentOverlaps()
+{
+	if (!UiVisibilitySphere)
+	{
+		return;
+	}
+
+	TArray<AActor*> OverlappingActors;
+	UiVisibilitySphere->GetOverlappingActors(OverlappingActors, AGsPlayer::StaticClass());
+
+	for (AActor* OverlappingActor : OverlappingActors)
+	{
+		const AGsPlayer* Player = Cast<AGsPlayer>(OverlappingActor);
+		if (Player && !Player->IsDead())
+		{
+			SetGrappleWidgetVisible(true);
+			return;
+		}
+	}
+
+	SetGrappleWidgetVisible(false);
+}
+
 void AGsGrapplePoint::SetPlayerNearby(bool bNearby, AGsPlayer* InPlayer)
 {
 	bIsPlayerNearby = bNearby;
@@ -180,5 +269,13 @@ void AGsGrapplePoint::SetPlayerNearby(bool bNearby, AGsPlayer* InPlayer)
 	if (GrapplePointUI)
 	{
 		GrapplePointUI->SetPlayerNearby(bIsPlayerNearby);
+	}
+}
+
+void AGsGrapplePoint::SetGrappleWidgetVisible(bool bVisible)
+{
+	if (GrappleWidgetComponent)
+	{
+		GrappleWidgetComponent->SetVisibility(bVisible, true);
 	}
 }

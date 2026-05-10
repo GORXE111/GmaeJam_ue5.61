@@ -238,6 +238,10 @@ void AGsPlayer::Tick(float DeltaSeconds)
 	{
 		TargetFOV = PlayerTuning.DashCameraFOV;
 	}
+	if (bIsFalculaLaunching)
+	{
+		TargetFOV = PlayerTuning.GrappleCameraFOV;
+	}
 	const float NewFOV = FMath::FInterpTo(FirstPersonCameraComponent->FieldOfView, TargetFOV, DeltaSeconds, PlayerTuning.CameraFOVInterpSpeed);
 	FirstPersonCameraComponent->SetFieldOfView(NewFOV);
 	UpdateWallRunCameraTilt(DeltaSeconds);
