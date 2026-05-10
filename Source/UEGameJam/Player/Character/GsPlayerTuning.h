@@ -78,6 +78,10 @@ struct UEGAMEJAM_API FGsPlayerTuningRow : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Skill", meta = (ClampMin = 0, Units = "cm"))
 	float SkillAimTraceDistance = 10000.0f;
 
+	/** 技能释放时准心吸附敌人的最大半角，数值越大越容易锁到准心附近的敌人 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Skill", meta = (ClampMin = 0, ClampMax = 90, Units = "deg"))
+	float SkillEnemyAimAssistAngle = 10.0f;
+
 	/** 技能释放占用动作状态的时长，数值越大越久不能触发其他互斥动作 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Skill", meta = (ClampMin = 0, Units = "s"))
 	float SkillActionDuration = 0.15f;

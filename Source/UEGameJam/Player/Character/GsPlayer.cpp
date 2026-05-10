@@ -40,7 +40,7 @@ AGsPlayer::AGsPlayer()
 	FirstPersonArmsMeshComponent->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
 
 	MeleeDamageCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeDamageCollision"));
-	MeleeDamageCollision->SetupAttachment(GetRootComponent());
+	MeleeDamageCollision->SetupAttachment(FirstPersonCameraComponent);
 	MeleeDamageCollision->SetRelativeLocation(FVector(140.0f, 0.0f, 0.0f));
 	MeleeDamageCollision->InitBoxExtent(FVector(70.0f, 50.0f, 50.0f));
 	MeleeDamageCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
