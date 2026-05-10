@@ -118,7 +118,6 @@ void AGsPlayer::ResetForRespawn(const FTransform& RespawnTransform)
 	bHasSafeLocation = true;
 	LastSafeLocation = RespawnTransform.GetLocation();
 	LastSafeRotation = RespawnTransform.GetRotation().Rotator();
-	CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
 	bResetFirstPersonCameraLocationOnNextUpdate = true;
 	TargetWallRunCameraRoll = 0.0f;
 	CurrentWallRunCameraRoll = 0.0f;

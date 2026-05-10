@@ -15,8 +15,6 @@
 #include "Player/Game/GsLevelStateGameState.h"
 #include "RealmRevealerComponent.h"
 
-static const FName FirstPersonCameraHeadSocketName(TEXT("head"));
-static const FVector FirstPersonCameraHeadLocationOffset(-2.8f, 5.89f, 0.0f);
 static const FRotator FirstPersonCameraInitialRelativeRotation(0.0f, 90.0f, -90.0f);
 
 AGsPlayer::AGsPlayer()
@@ -27,13 +25,19 @@ AGsPlayer::AGsPlayer()
 
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCameraComponent->SetupAttachment(GetRootComponent());
-	FirstPersonCameraComponent->SetRelativeLocationAndRotation(FirstPersonCameraHeadLocationOffset, FirstPersonCameraInitialRelativeRotation);
+	FirstPersonCameraComponent->SetRelativeLocationAndRotation(FirstPersonCameraRelativeLocation, FirstPersonCameraInitialRelativeRotation);
 	FirstPersonCameraComponent->bUsePawnControlRotation = false;
 	FirstPersonCameraComponent->bEnableFirstPersonFieldOfView = true;
 	FirstPersonCameraComponent->bEnableFirstPersonScale = true;
 	FirstPersonCameraComponent->FirstPersonFieldOfView = 70.0f;
 	FirstPersonCameraComponent->FirstPersonScale = 0.6f;
-	DefaultFirstPersonCameraRelativeTransform = FTransform(FirstPersonCameraInitialRelativeRotation, FirstPersonCameraHeadLocationOffset);
+
+	FirstPersonArmsMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonArmsMesh"));
+	FirstPersonArmsMeshComponent->SetupAttachment(FirstPersonCameraComponent);
+	FirstPersonArmsMeshComponent->SetOnlyOwnerSee(true);
+	FirstPersonArmsMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FirstPersonArmsMeshComponent->SetGenerateOverlapEvents(false);
+	FirstPersonArmsMeshComponent->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
 
 	MeleeDamageCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeDamageCollision"));
 	MeleeDamageCollision->SetupAttachment(GetRootComponent());
@@ -45,13 +49,6 @@ AGsPlayer::AGsPlayer()
 	MeleeDamageCollision->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Overlap);
 	MeleeDamageCollision->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Overlap);
 	MeleeDamageCollision->SetGenerateOverlapEvents(true);
-
-	if (USkeletalMeshComponent* WorldMesh = GetMesh())
-	{
-		WorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		WorldMesh->SetGenerateOverlapEvents(false);
-		WorldMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
-	}
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
 	PlayerMovementComponent->BrakingDecelerationFalling = 1500.0f;
@@ -104,18 +101,10 @@ void AGsPlayer::BeginPlay()
 
 	if (FirstPersonCameraComponent)
 	{
-		CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
 		bResetFirstPersonCameraLocationOnNextUpdate = true;
 		TargetWallRunCameraRoll = 0.0f;
 		CurrentWallRunCameraRoll = 0.0f;
 		FirstPersonCameraComponent->SetFieldOfView(PlayerTuning.DefaultCameraFOV);
-	}
-
-	if (USkeletalMeshComponent* WorldMesh = GetMesh())
-	{
-		WorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		WorldMesh->SetGenerateOverlapEvents(false);
-		WorldMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
 	}
 
 	OnDamaged.Broadcast(GetLifePercent());
@@ -365,15 +354,10 @@ void AGsPlayer::DoAim(float Yaw, float Pitch)
 
 void AGsPlayer::UpdateFirstPersonCameraTransform(float DeltaSeconds)
 {
-	USkeletalMeshComponent* PlayerMesh = GetMesh();
-	if (!FirstPersonCameraComponent || !PlayerMesh)
+	if (!FirstPersonCameraComponent)
 	{
 		return;
 	}
-
-	const FTransform HeadSocketWorldTransform = PlayerMesh->DoesSocketExist(FirstPersonCameraHeadSocketName)
-		? PlayerMesh->GetSocketTransform(FirstPersonCameraHeadSocketName, RTS_World)
-		: PlayerMesh->GetComponentTransform();
 
 	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	FRotator DesiredCameraWorldRotation = GetActorRotation();
@@ -381,12 +365,11 @@ void AGsPlayer::UpdateFirstPersonCameraTransform(float DeltaSeconds)
 	{
 		DesiredCameraWorldRotation = PlayerController->GetControlRotation().GetNormalized();
 	}
-	CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
 
 	const FRotator StableCameraYawRotation(0.0f, DesiredCameraWorldRotation.Yaw, 0.0f);
 	const FVector TargetCameraWorldLocation =
-		HeadSocketWorldTransform.GetLocation()
-		+ StableCameraYawRotation.RotateVector(DefaultFirstPersonCameraRelativeTransform.GetLocation());
+		GetActorLocation()
+		+ StableCameraYawRotation.RotateVector(FirstPersonCameraRelativeLocation);
 
 	const FVector DesiredCameraWorldLocation =
 		!bResetFirstPersonCameraLocationOnNextUpdate && PlayerTuning.HeadCameraLocationInterpSpeed > 0.0f

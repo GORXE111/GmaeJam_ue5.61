@@ -44,6 +44,10 @@ class UEGAMEJAM_API AGsPlayer : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FirstPersonCameraComponent;
 
+	/** 第一人称手臂与武器表现用骨骼网格体，挂在相机下跟随视角移动 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USkeletalMeshComponent> FirstPersonArmsMeshComponent;
+
 	/** 近战造成伤害时使用的盒形检测范围，可在蓝图中调整位置和大小 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBoxComponent> MeleeDamageCollision;
@@ -75,6 +79,10 @@ protected:
 	/** 调试用无敌开关，开启后玩家不会受到伤害 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug", meta = (AllowPrivateAccess = "true"))
 	bool bDebugInvincible = false;
+
+	/** 相机相对胶囊体的第一人称眼睛位置，用于调整玩家视角高度和前后偏移 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Camera", meta = (AllowPrivateAccess = "true"))
+	FVector FirstPersonCameraRelativeLocation = FVector(0.0f, 0.0f, 64.0f);
 
 	/** 当前角色动作，用于阻止互斥动作同时触发 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Action", meta = (AllowPrivateAccess = "true"))
@@ -225,12 +233,6 @@ protected:
 	/** 进入墙跑前缓存的自定义移动模式 */
 	uint8 PreWallRunCustomMovementMode = 0;
 
-	/** 第一人称相机相对头部位置的稳定偏移，不使用头部 Socket 旋转 */
-	FTransform DefaultFirstPersonCameraRelativeTransform = FTransform::Identity;
-
-	/** 当前平滑后的头部旋转偏移，当前相机已解耦头部旋转，保留为兼容旧状态 */
-	FRotator CurrentHeadCameraRotationOffset = FRotator::ZeroRotator;
-
 	/** 是否需要在下一次相机更新时直接同步到头部目标位置 */
 	bool bResetFirstPersonCameraLocationOnNextUpdate = true;
 
@@ -338,6 +340,7 @@ public:
 	bool IsDead() const;
 
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+	USkeletalMeshComponent* GetFirstPersonArmsMeshComponent() const { return FirstPersonArmsMeshComponent; }
 	UBoxComponent* GetMeleeDamageCollision() const { return MeleeDamageCollision; }
 
 protected:

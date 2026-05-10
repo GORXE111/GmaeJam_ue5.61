@@ -30,7 +30,7 @@ bool AGsPlayer::StartMeleeAttack()
 	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	float ActionDuration = PlayerTuning.MeleeFallbackDuration;
 
-	if (USkeletalMeshComponent* PlayerMesh = GetMesh())
+	if (USkeletalMeshComponent* PlayerMesh = GetFirstPersonArmsMeshComponent())
 	{
 		if (UAnimInstance* AnimInstance = PlayerMesh->GetAnimInstance())
 		{
