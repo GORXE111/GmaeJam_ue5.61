@@ -23,6 +23,7 @@ void AGsPlayer::Die()
 	{
 		AbortDash();
 	}
+	AbortGrapple();
 	if (IsLedgeClimbing())
 	{
 		AbortLedgeClimb();
@@ -37,7 +38,7 @@ void AGsPlayer::Die()
 		FinishCharacterAction();
 	}
 	bHasDashedSinceLanded = false;
-	bIsFalculaLaunching = false;
+	ClearGrappleState();
 	ResetWallRunDetection();
 
 	if (UWorld* World = GetWorld())
@@ -123,6 +124,7 @@ void AGsPlayer::ResetForRespawn(const FTransform& RespawnTransform)
 	CurrentWallRunCameraRoll = 0.0f;
 	SetWallRunCameraTiltTarget(0.0f);
 	ClearDashState();
+	ClearGrappleState();
 	ClearLedgeClimbState();
 	ResetWallRunDetection();
 

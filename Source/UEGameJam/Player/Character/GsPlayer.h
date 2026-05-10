@@ -175,6 +175,27 @@ protected:
 	/** 是否处于钩索抛起窗口，用于避免把钩索状态识别为空中空闲 */
 	bool bIsFalculaLaunching = false;
 
+	/** 钩索飞行方向 */
+	FVector GrappleDirection = FVector::ForwardVector;
+
+	/** 钩索飞行开始时的位置 */
+	FVector GrappleStartLocation = FVector::ZeroVector;
+
+	/** 钩索飞行目标位置 */
+	FVector GrappleTargetLocation = FVector::ZeroVector;
+
+	/** 当前钩索飞行已推进的时间 */
+	float CurrentGrappleElapsedTime = 0.0f;
+
+	/** 当前钩索飞行预计持续时间 */
+	float CurrentGrappleDuration = 0.0f;
+
+	/** 进入钩索前缓存的移动模式，用于钩索结束后恢复移动组件 */
+	EMovementMode PreGrappleMovementMode = MOVE_Falling;
+
+	/** 进入钩索前缓存的自定义移动模式 */
+	uint8 PreGrappleCustomMovementMode = 0;
+
 	/** 平台边缘攀爬开始时的位置 */
 	FVector LedgeClimbStartLocation = FVector::ZeroVector;
 
@@ -361,6 +382,18 @@ protected:
 
 	/** 每帧推进冲刺位移并处理碰撞与结束条件 */
 	void UpdateDash(float DeltaSeconds);
+
+	/** 每帧推进钩索飞行位移并处理碰撞与结束条件 */
+	void UpdateGrapple(float DeltaSeconds);
+
+	/** 正常结束钩索飞行并恢复移动状态，给一个沿钩索方向的小惯性 */
+	void FinishGrapple();
+
+	/** 强制中断钩索飞行并恢复移动组件，不保留飞行惯性 */
+	void AbortGrapple();
+
+	/** 清理钩索飞行运行时状态缓存 */
+	void ClearGrappleState();
 
 	/** 起跳后开启墙跑检测延迟 */
 	void StartWallRunDetectionDelay();

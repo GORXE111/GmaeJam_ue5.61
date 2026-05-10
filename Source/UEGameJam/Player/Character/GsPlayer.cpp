@@ -85,6 +85,7 @@ void AGsPlayer::BeginPlay()
 	DashStartLocation = FVector::ZeroVector;
 	DashTargetLocation = FVector::ZeroVector;
 	CurrentDashElapsedTime = 0.0f;
+	ClearGrappleState();
 	LedgeClimbStartLocation = FVector::ZeroVector;
 	LedgeClimbTargetLocation = FVector::ZeroVector;
 	CurrentLedgeClimbElapsedTime = 0.0f;
@@ -197,17 +198,12 @@ void AGsPlayer::Tick(float DeltaSeconds)
 
 	UpdateSlide(DeltaSeconds);
 	UpdateDash(DeltaSeconds);
+	UpdateGrapple(DeltaSeconds);
 	UpdateLedgeClimb(DeltaSeconds);
 	UpdateWallRun(DeltaSeconds);
 	UpdateWallRunDetection();
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
-	if (bIsFalculaLaunching
-		&& (!PlayerMovementComponent || !PlayerMovementComponent->IsFalling() || PlayerMovementComponent->Velocity.Z <= 0.0f))
-	{
-		bIsFalculaLaunching = false;
-	}
-
 	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	if (PlayerMovementComponent
 		&& PlayerMovementComponent->IsFalling()
@@ -255,6 +251,7 @@ void AGsPlayer::EndPlay(EEndPlayReason::Type EndPlayReason)
 	{
 		AbortDash();
 	}
+	AbortGrapple();
 	if (IsLedgeClimbing())
 	{
 		AbortLedgeClimb();
@@ -313,7 +310,7 @@ void AGsPlayer::Landed(const FHitResult& Hit)
 	}
 
 	bHasDashedSinceLanded = false;
-	bIsFalculaLaunching = false;
+	ClearGrappleState();
 	ResetWallRunDetection();
 	UpdateSafeLandingTransform();
 }
@@ -420,7 +417,7 @@ void AGsPlayer::DoSlide()
 
 	bIsSlideInputHeld = true;
 
-	if (IsWallRunning())
+	if (bIsFalculaLaunching || IsWallRunning())
 	{
 		return;
 	}
@@ -445,7 +442,7 @@ void AGsPlayer::DoSlideEnd()
 
 void AGsPlayer::DoDash()
 {
-	if (bIsDead || IsWallRunning())
+	if (bIsDead || bIsFalculaLaunching || IsWallRunning())
 	{
 		return;
 	}
@@ -607,6 +604,7 @@ void AGsPlayer::RecoverFromDeepFall()
 	{
 		AbortDash();
 	}
+	AbortGrapple();
 	if (IsLedgeClimbing())
 	{
 		AbortLedgeClimb();
@@ -621,7 +619,7 @@ void AGsPlayer::RecoverFromDeepFall()
 		FinishCharacterAction();
 	}
 	bHasDashedSinceLanded = false;
-	bIsFalculaLaunching = false;
+	ClearGrappleState();
 	ResetWallRunDetection();
 
 	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())

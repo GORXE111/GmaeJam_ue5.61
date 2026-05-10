@@ -10,9 +10,18 @@
 #include "GameFramework/Controller.h"
 #include "Player/Scene/GsGrapplePoint.h"
 
+static constexpr float GrappleFinishDistance = 80.0f;
+static constexpr float GrappleExitSpeedScale = 0.25f;
+static constexpr float GrappleEaseInStrength = 0.65f;
+
 void AGsPlayer::DoFalcula()
 {
 	if (bIsDead)
+	{
+		return;
+	}
+
+	if (bIsFalculaLaunching || IsCharacterActionActive())
 	{
 		return;
 	}
@@ -43,8 +52,7 @@ void AGsPlayer::DoFalcula()
 
 	const FVector ToTarget = TargetLocation - StartLocation;
 	const float TargetDistance = ToTarget.Size();
-	const float MaxGrappleDistance = GrapplePoint->GetGrappleProximityRadius();
-	if (MaxGrappleDistance <= KINDA_SMALL_NUMBER)
+	if (TargetDistance <= GrappleFinishDistance)
 	{
 		return;
 	}
@@ -55,17 +63,115 @@ void AGsPlayer::DoFalcula()
 		return;
 	}
 
-	const float DistanceAlpha = FMath::Clamp(TargetDistance / MaxGrappleDistance, 0.0f, 1.0f);
-	const float LaunchSpeed = PlayerTuning.GrappleDirectSpeed * DistanceAlpha;
-	const FVector LaunchVelocity = DirectDirection * LaunchSpeed;
-	LaunchCharacter(LaunchVelocity, true, true);
+	const float GrappleSpeed = PlayerTuning.GrappleDirectSpeed;
+	if (GrappleSpeed <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	GrappleDirection = DirectDirection;
+	GrappleStartLocation = GetActorLocation();
+	GrappleTargetLocation = TargetLocation;
+	CurrentGrappleElapsedTime = 0.0f;
+	CurrentGrappleDuration = (TargetDistance) / GrappleSpeed;
+	PreGrappleMovementMode = PlayerMovementComponent->MovementMode;
+	PreGrappleCustomMovementMode = PlayerMovementComponent->CustomMovementMode;
 	LastFalculaTime = CurrentWorldTime;
 	bIsFalculaLaunching = true;
+
+	PlayerMovementComponent->StopMovementImmediately();
+	PlayerMovementComponent->StopActiveMovement();
+	PlayerMovementComponent->DisableMovement();
+
+	if (CurrentGrappleDuration <= KINDA_SMALL_NUMBER)
+	{
+		FinishGrapple();
+	}
 
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Cyan, TEXT("FalculaAction: Grapple point reachable"));
 	}
+}
+
+void AGsPlayer::UpdateGrapple(float DeltaSeconds)
+{
+	if (!bIsFalculaLaunching)
+	{
+		return;
+	}
+
+	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
+	if (!PlayerMovementComponent)
+	{
+		AbortGrapple();
+		return;
+	}
+
+	CurrentGrappleElapsedTime += DeltaSeconds;
+	const float GrappleAlpha = CurrentGrappleDuration > KINDA_SMALL_NUMBER
+		? FMath::Clamp(CurrentGrappleElapsedTime / CurrentGrappleDuration, 0.0f, 1.0f)
+		: 1.0f;
+	const float EaseInAlpha = FMath::Lerp(GrappleAlpha, GrappleAlpha * GrappleAlpha, GrappleEaseInStrength);
+	const bool bTimeFinished = GrappleAlpha >= 1.0f;
+
+	const FVector DesiredLocation = FMath::Lerp(GrappleStartLocation, GrappleTargetLocation, EaseInAlpha);
+
+	FHitResult SweepHit;
+	SetActorLocation(DesiredLocation, true, &SweepHit, ETeleportType::None);
+
+	const bool bReachedTargetNearby = FVector::DistSquared(GetActorLocation(), GrappleTargetLocation) <= FMath::Square(GrappleFinishDistance);
+	if (SweepHit.bBlockingHit || bReachedTargetNearby || bTimeFinished)
+	{
+		FinishGrapple();
+	}
+}
+
+void AGsPlayer::FinishGrapple()
+{
+	if (!bIsFalculaLaunching)
+	{
+		ClearGrappleState();
+		return;
+	}
+
+	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
+	{
+		PlayerMovementComponent->SetMovementMode(PreGrappleMovementMode, PreGrappleCustomMovementMode);
+		PlayerMovementComponent->Velocity = GrappleDirection * (GetPlayerTuning().GrappleDirectSpeed * GrappleExitSpeedScale);
+	}
+
+	ClearGrappleState();
+}
+
+void AGsPlayer::AbortGrapple()
+{
+	if (!bIsFalculaLaunching)
+	{
+		ClearGrappleState();
+		return;
+	}
+
+	if (UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement())
+	{
+		PlayerMovementComponent->SetMovementMode(PreGrappleMovementMode, PreGrappleCustomMovementMode);
+		PlayerMovementComponent->StopMovementImmediately();
+		PlayerMovementComponent->StopActiveMovement();
+	}
+
+	ClearGrappleState();
+}
+
+void AGsPlayer::ClearGrappleState()
+{
+	bIsFalculaLaunching = false;
+	GrappleDirection = FVector::ForwardVector;
+	GrappleStartLocation = FVector::ZeroVector;
+	GrappleTargetLocation = FVector::ZeroVector;
+	CurrentGrappleElapsedTime = 0.0f;
+	CurrentGrappleDuration = 0.0f;
+	PreGrappleMovementMode = MOVE_Falling;
+	PreGrappleCustomMovementMode = 0;
 }
 
 AGsGrapplePoint* AGsPlayer::FindReachableGrapplePoint() const
