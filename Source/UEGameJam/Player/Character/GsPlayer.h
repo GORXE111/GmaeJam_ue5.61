@@ -40,10 +40,6 @@ class UEGAMEJAM_API AGsPlayer : public ACharacter
 {
 	GENERATED_BODY()
 
-	/** 第一人称手臂网格，仅自己可见 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USkeletalMeshComponent> FirstPersonMesh;
-
 	/** 第一人称相机 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FirstPersonCameraComponent;
@@ -341,7 +337,6 @@ public:
 	UFUNCTION(BlueprintPure, Category="Health")
 	bool IsDead() const;
 
-	USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 	UBoxComponent* GetMeleeDamageCollision() const { return MeleeDamageCollision; }
 

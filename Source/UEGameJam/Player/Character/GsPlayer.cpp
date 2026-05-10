@@ -25,12 +25,6 @@ AGsPlayer::AGsPlayer()
 
 	GetCapsuleComponent()->InitCapsuleSize(34.0f, 96.0f);
 
-	FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
-	FirstPersonMesh->SetupAttachment(GetMesh());
-	FirstPersonMesh->SetOnlyOwnerSee(true);
-	FirstPersonMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
-	FirstPersonMesh->SetCollisionProfileName(FName("NoCollision"));
-
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCameraComponent->SetupAttachment(GetRootComponent());
 	FirstPersonCameraComponent->SetRelativeLocationAndRotation(FirstPersonCameraHeadLocationOffset, FirstPersonCameraInitialRelativeRotation);
@@ -54,11 +48,9 @@ AGsPlayer::AGsPlayer()
 
 	if (USkeletalMeshComponent* WorldMesh = GetMesh())
 	{
-		WorldMesh->SetVisibility(false);
-		WorldMesh->SetHiddenInGame(true);
 		WorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		WorldMesh->SetGenerateOverlapEvents(false);
-		WorldMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
+		WorldMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
 	}
 
 	UCharacterMovementComponent* PlayerMovementComponent = GetCharacterMovement();
@@ -121,10 +113,9 @@ void AGsPlayer::BeginPlay()
 
 	if (USkeletalMeshComponent* WorldMesh = GetMesh())
 	{
-		WorldMesh->SetVisibility(false);
-		WorldMesh->SetHiddenInGame(true);
 		WorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		WorldMesh->SetGenerateOverlapEvents(false);
+		WorldMesh->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::FirstPerson;
 	}
 
 	OnDamaged.Broadcast(GetLifePercent());
@@ -374,14 +365,15 @@ void AGsPlayer::DoAim(float Yaw, float Pitch)
 
 void AGsPlayer::UpdateFirstPersonCameraTransform(float DeltaSeconds)
 {
-	if (!FirstPersonCameraComponent || !FirstPersonMesh)
+	USkeletalMeshComponent* PlayerMesh = GetMesh();
+	if (!FirstPersonCameraComponent || !PlayerMesh)
 	{
 		return;
 	}
 
-	const FTransform HeadSocketWorldTransform = FirstPersonMesh->DoesSocketExist(FirstPersonCameraHeadSocketName)
-		? FirstPersonMesh->GetSocketTransform(FirstPersonCameraHeadSocketName, RTS_World)
-		: FirstPersonMesh->GetComponentTransform();
+	const FTransform HeadSocketWorldTransform = PlayerMesh->DoesSocketExist(FirstPersonCameraHeadSocketName)
+		? PlayerMesh->GetSocketTransform(FirstPersonCameraHeadSocketName, RTS_World)
+		: PlayerMesh->GetComponentTransform();
 
 	const FGsPlayerTuningRow& PlayerTuning = GetPlayerTuning();
 	FRotator DesiredCameraWorldRotation = GetActorRotation();
